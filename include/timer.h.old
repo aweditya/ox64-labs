@@ -1,0 +1,108 @@
+#pragma once
+
+enum {
+    timer_clk_src           = 0x2000a500,
+
+    timer2_match_val0       = 0x2000a510,
+    timer2_match_val1       = 0x2000a514,
+    timer2_match_val2       = 0x2000a518,
+
+    timer2_ctr_val2         = 0x2000a52c,
+
+    timer2_match_status     = 0x2000a538,
+    timer2_match_intr_en    = 0x2000a544,
+
+    timer2_preload_val      = 0x2000a550,
+    timer2_preload_ctl      = 0x2000a55c,
+
+    timer2_intr_clr         = 0x2000a578,
+    timer_ctr_en_clr        = 0x2000a584,
+    timer_ctr_mode          = 0x2000a588,
+
+    timer2_match_intr_mode  = 0x2000a590,
+    timer_clk_div           = 0x2000a5bc,
+};
+
+typedef struct {
+    uint32_t clk_src_timer2     : 4;
+    uint32_t clk_src_timer3     : 4;
+    uint32_t clk_src_wdt        : 4;
+    uint32_t rsvd               : 4;
+    uint32_t timer_rsvd         : 8;
+    uint32_t id                 : 8;
+} __attribute__((packed)) tccr_t;
+
+typedef struct {
+    uint32_t rsvd1          : 1;
+    uint32_t timer2_en      : 1;
+    uint32_t timer3_en      : 1;
+    uint32_t rsvd2          : 2;
+    uint32_t timer2_cnt_clr : 1;
+    uint32_t timer3_cnt_clr : 1;
+    uint32_t rsvd3          : 25;
+} __atrribute__((packed)) tcer_t;
+
+typedef struct {
+    uint32_t rsvd               : 8;
+    uint32_t timer2_clk_div_val : 8;
+    uint32_t timer3_clk_div_val : 8;
+    uint32_t wdt_clk_div_val    : 8;
+} __attribute__((packed)) tcdr_t;
+
+enum {
+    SRC_FCLK    = 0,
+    SRC_32K     = 1,
+    SRC_1K      = 2,
+    SRC_BCLK    = 3,
+    SRC_GPIO    = 4,
+    SRC_NOCLK   = 5,
+};
+
+enum {
+    NO_PRELOAD = 0,
+    MATCH_CMP0 = 1,
+    MATCH_CMP1 = 2,
+    MATCH_CMP2 = 3,
+};
+
+// initialize timer2
+// using only one match value which is match_val0 
+// for the time being
+void timer2_init(uint32_t match_val0) {
+    // disasble timers, clear counters
+    PUT32(timer_ctr_en_clr, (1<<6)|(1<<5));
+    // clear interrupts
+    PUT32(time2_intr_clr, 0b111);
+
+    // set clk src (use 32K for now)
+    tccr_t tccr = get32_type(tccr_t, (uint32_t *)timer_clk_src);
+    tccr.clk_src_timer2 = SRC_32K;
+    put32_type(tccr_t, (uint32_t *)timer_clk_src, tccr);
+
+    // setup counter mode
+    // timer2 compare val update align interrupt set to 0
+    // for now (might need to figure out what this is)
+    PUT32(timer_ctr_mode, 0);
+
+    // setup match_val0 
+    PUT32(timer2_match_val0, match_val0);
+
+    // start with a preload value of 0
+    // can add an argument later
+    PUT32(timer2_preload_val, 0);
+
+    // setup comparison with 0
+    // can add an argument to decide which one to match on
+    PUT32(timer2_preload_ctl, MATCH_CMP0);
+
+    // setup the clk divider
+    // again, can have an argument for this
+    // 0 - no freq div
+    // 1 - div by 2
+    // and so on...
+    PUT32(timer_clk_div, 31<<8);
+
+    // re-enable timer2
+    PUT32(timer_ctr_en_clr, 1<<1);
+}
+
