@@ -15,6 +15,10 @@ _start:
     # like the gp
     la sp, __stack_top__
 
+    # we boot in machine mode
+    # disable external interrupts
+    csrci mstatus, 0x8
+
     # s0: saved register/frame pointer
     add s0, sp, zero
 
