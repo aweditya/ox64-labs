@@ -1,9 +1,11 @@
 #define LOG_LEVEL 3
 #include "lib.h"
 
-static volatile uint32_t *const MSIP0 = (volatile uint32_t *)0xe4000000;
-static volatile uint32_t *const MTIMECMPL0 = (volatile uint32_t *)0xe4004000;
-static volatile uint32_t *const MTIMECMPH0 = (volatile uint32_t *)0xe4004004;
+static volatile uint32_t *const PLIC_H0_MIE_BASE = (volatile uint32_t *)0xe0002000;
+static volatile uint32_t *const PLIC_H0_MTH  = (volatile uint32_t *)0xe2000000;
+static volatile uint32_t *const PLIC_H0_MCLAIM  = (volatile uint32_t *)0xe2000004;
+static volatile uint32_t *const PLIC_PRIO_BASE  = (volatile uint32_t *)0xe0000004;
+
 
 // Helper function to convert an integer to a hexadecimal string and print using putc
 void itoa_hex(uint64_t num) {
@@ -80,14 +82,36 @@ __attribute__((aligned(4))) void handler(void) {
     uart_putc(UART0, '\n');
 }
 
-void disable_interrupts(void) {
-    asm volatile("csrci mstatus, 0x8");
-    return;
+void disable_interrupts(uint32_t irq) {
+    uint32t ieReg = get32(PLIC_H0_MIE_BASE + (irq / 32));
+    ieReg &= ~(1 << (irq & 32));
+    put32(PLIC_H0_MIE_BASE + (irq / 32), ieReg);
 }
 
-void enable_interrupts(void) {
-    asm volatile("csrsi mstatus, 0x8");
-    return;
+void disable_all_interrupts(void) {
+    put32(PLIC_H0_MIE_BASE, 0);
+    put32(PLIC_H0_MIE_BASE + 1, 0);
+}
+
+void enable_interrupts(uint32_t irq) {
+    uint32t ieReg = get32(PLIC_H0_MIE_BASE + (irq / 32));
+    ieReg |= 1 << (irq % 32);
+    put32(PLIC_H0_MIE_BASE + (irq / 32), ieReg);
+}
+
+void clear_interrupts(void) {
+    uint32_t raisedIntrs = get32(PLIC_H0_MCLAIM);
+    put32(PLIC_H0_MCLAIM, raisedIntrs)
+}
+
+void set_interrupt_priority(uint32 priority) {
+    for (uint32_t i = 0; i < 1024; i++) {
+        put32(PLIC_PRIO_BASE + i, priority);
+    }
+}
+
+void set_interrupt_threshold(uint32_t thresh) {
+    put32(PLIC_H0_MTH, thresh);
 }
 
 void kmain(void) {
