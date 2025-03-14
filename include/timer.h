@@ -1,10 +1,10 @@
 #pragma once
 
 enum {
-    MSIP0       = 0x4000000,
+    MSIP0       = 0xE4000000,
 
-    MTIMECMPL0  = 0x4004000,
-    MTIMECMPH0  = 0x4004004,
+    MTIMECMPL0  = 0xE4004000,
+    MTIMECMPH0  = 0xE4004004,
 };
 
 void disable_timer_interrupts(void);
