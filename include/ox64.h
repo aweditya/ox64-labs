@@ -1,45 +1,14 @@
 #pragma once
 #include <stdint.h>
 
-/**
- * Used to write to device memory.  Use this instead of a raw store.
- * Writes the 32-bit value <v> to address <addr>.
- *
- * Safer alternative to *(uint32_t *)addr = v;
- *
- * Like PUT32, but takes <addr> as a pointer.
- */
-void put32(volatile void *addr, uint32_t v);
+extern void put32(volatile uint32_t *addr, uint32_t value);
+extern void PUT32(volatile uint32_t addr, uint32_t value);
 
-/**
- * Used to write to device memory.  Use this instead of a raw store.
- * Writes the 32-bit value <v> to address <addr>.
- *
- * Safer alternative to *(uint32_t *)addr = v;
- *
- * Like put32, but takes <addr> as an int.
- */
-void PUT32(uint32_t addr, uint32_t v);
+extern void put64(volatile uint64_t *addr, uint32_t value);
+extern void PUT64(volatile uint64_t addr, uint32_t value);
 
-/**
- * Used to read from device memory.  Use this instead of a raw
- * dereference. Returns the 32-bit value at address <addr>.
- *
- * Safer alternative to *(uint32_t *)addr.
- *
- * Like GET32, but takes <addr> as a pointer.
- */
-uint32_t get32(const volatile void *addr);
-
-/**
- * Used to read from device memory.  Use this instead of a
- * raw dereference. Returns the 32-bit value at address <addr>.
- *
- * Safer alternative to *(uint32_t *)addr.
- *
- * Like get32, but takes <addr> as an int.
- */
-uint32_t GET32(uint32_t addr);
+extern uint32_t get32(volatile uint32_t *addr);
+extern uint32_t GET32(volatile uint32_t addr);
 
 #define get32_type(T, addr) \
   ({ \
@@ -53,6 +22,7 @@ uint32_t GET32(uint32_t addr);
     uint32_t raw = *(uint32_t *)&val; \
     put32((volatile uint32_t *)addr, raw); \
   })
+
 
 /*********************************************************
  * some gcc helpers.
