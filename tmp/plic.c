@@ -1,6 +1,8 @@
 #define LOG_LEVEL 3
 #include "lib.h"
 
+#define IRQ_NUM_BASE 16 // pg 45 BL808
+
 // PLIC_PRIOx sets the interrupt priority for source x
 static volatile uint32_t *const PLIC_PRIO_BASE  = (volatile uint32_t *)0xe0000004;
 
@@ -86,9 +88,16 @@ static void intr_req_response(void) {
     if (mclaim_reg == 0)
         return;
 
-    // 3. 
+    // 3. if matches timer interrupt id
+    if (mclaim_reg == IRQ_NUM_BASE + 61) {
+        uart_puts("Hit timer interrupt!");
+    }
+}
 
-
+// pg 89 of c906
+static void intr_completion(uint32_t target) {
+    // write id of intr to corresponding claim/complete reg
+    put32(PLIC_H0_MCLAIM, target);
 }
 
 __attribute__((aligned(4))) void handler(void) {

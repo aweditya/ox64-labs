@@ -84,3 +84,8 @@ void uart_putc(uint8_t c) {
     put32(UART_FIFO_WDATA, c);
 }
 
+void uart_puts(const char *c) {
+    while (*c) {
+        uart_putc(*c++);
+    }
+}
