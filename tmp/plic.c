@@ -220,33 +220,33 @@ static inline void vector_base_set(void *vec) {
             : "r" (base));
 }
 
-// // pg 89 of c906 doc
-// static uint32_t intr_req_response(void) {
-//     // 1. read claim/complete reg
-//     // the read operation resets the ip bit of
-//     // the corresponding plic
-//     uint32_t mclaim_reg = get32(PLIC_H0_MCLAIM);
-//     itoa_hex(mclaim_reg);
-// 
-//     // 2. if mclaim_reg == 0, return
-//     // im guessing you should send an intr
-//     // completion msg?
-//     if (mclaim_reg == 0)
-//         return 0;
-// 
-//     // 3. if matches timer interrupt id
-//     if (mclaim_reg == IRQ_NUM_BASE + 61 || mclaim_reg == IRQ_NUM_BASE + 62) {
-//         uart_puts(UART0, "Hit timer interrupt!");
-//     }
-// 
-//     return mclaim_reg;
-// }
-// 
-// // pg 89 of c906
-// static void intr_completion(uint32_t target) {
-//     // write id of intr to corresponding claim/complete reg
-//     put32_check(PLIC_H0_MCLAIM, target);
-// }
+// pg 89 of c906 doc
+static uint32_t intr_req_response(void) {
+    // 1. read claim/complete reg
+    // the read operation resets the ip bit of
+    // the corresponding plic
+    uint32_t mclaim_reg = get32(PLIC_H0_MCLAIM);
+    itoa_hex(mclaim_reg);
+
+    // 2. if mclaim_reg == 0, return
+    // im guessing you should send an intr
+    // completion msg?
+    if (mclaim_reg == 0)
+        return 0;
+
+    // 3. if matches timer interrupt id
+    if (mclaim_reg == IRQ_NUM_BASE + 61 || mclaim_reg == IRQ_NUM_BASE + 62) {
+        uart_puts(UART0, "Hit timer interrupt!");
+    }
+
+    return mclaim_reg;
+}
+
+// pg 89 of c906
+static void intr_completion(uint32_t target) {
+    // write id of intr to corresponding claim/complete reg
+    put32_check(PLIC_H0_MCLAIM, target);
+}
 
 __attribute__((aligned(4))) void handler(void) {
     uart_puts(UART0, "inside handler\n");
@@ -267,38 +267,38 @@ __attribute__((aligned(4))) void handler(void) {
     itoa_hex(mtval);
     uart_putc(UART0, '\n');
 
-    // // REMOVE: move back above mepc line 247??
-    // uint32_t target = intr_req_response();
-    // if (target == 0)
-    //     return;
+    // REMOVE: move back above mepc line 247??
+    uint32_t target = intr_req_response();
+    if (target == 0)
+        return;
 
-    // intr_completion(target);
+    intr_completion(target);
 }
 
-// void set_intr_prio(uint32_t irq, unsigned prio) {
-//     if (prio >= 32)
-//         // disallowed priority
-//         return;
-// 
-//     put32_check(PLIC_PRIO_BASE + irq, prio);
-// }
-// 
-// void set_intr_th(unsigned th) {
-//     if (th >= 32)
-//         // disallowed threshold
-//         return;
-// 
-//     // intr only triggered if
-//     // prio of intr > th
-//     put32_check(PLIC_H0_MTH, th);
-// }
-// 
-// 
-// void disable_interrupts(uint32_t irq) {
-//     uint32_t ie_reg = get32(PLIC_H0_MIE_BASE + (irq / 32));
-//     ie_reg &= ~(1 << (irq & 32));
-//     put32_check(PLIC_H0_MIE_BASE + (irq / 32), ie_reg);
-// }
+void set_intr_prio(uint32_t irq, unsigned prio) {
+    if (prio >= 32)
+        // disallowed priority
+        return;
+
+    put32_check(PLIC_PRIO_BASE + irq, prio);
+}
+
+void set_intr_th(unsigned th) {
+    if (th >= 32)
+        // disallowed threshold
+        return;
+
+    // intr only triggered if
+    // prio of intr > th
+    put32_check(PLIC_H0_MTH, th);
+}
+
+
+void disable_interrupts(uint32_t irq) {
+    uint32_t ie_reg = get32(PLIC_H0_MIE_BASE + (irq / 32));
+    ie_reg &= ~(1 << (irq & 32));
+    put32_check(PLIC_H0_MIE_BASE + (irq / 32), ie_reg);
+}
 
 void disable_all_interrupts(uint32_t *plic_h0_mie_base) {
     // disable all interrupts
@@ -307,11 +307,11 @@ void disable_all_interrupts(uint32_t *plic_h0_mie_base) {
     }
 }
 
-// void enable_interrupts(uint32_t irq) {
-//     uint32_t ie_reg = get32(PLIC_H0_MIE_BASE + (irq / 32));
-//     ie_reg |= 1 << (irq % 32);
-//     put32_check(PLIC_H0_MIE_BASE + (irq / 32), ie_reg);
-// }
+void enable_interrupts(uint32_t irq) {
+    uint32_t ie_reg = get32(PLIC_H0_MIE_BASE + (irq / 32));
+    ie_reg |= 1 << (irq % 32);
+    put32_check(PLIC_H0_MIE_BASE + (irq / 32), ie_reg);
+}
 
 void kmain(void) {
   uart_init(UART0, 115200);
@@ -333,7 +333,6 @@ void kmain(void) {
 
   disable_all_interrupts(plic_prio_base);
 
-  /*
   uart_puts(UART0, "309\n");
   set_intr_prio(IRQ_NUM_BASE + 61, 1);
   set_intr_prio(IRQ_NUM_BASE + 62, 1);
@@ -347,7 +346,6 @@ void kmain(void) {
   enable_interrupts(IRQ_NUM_BASE + 62);
 
   asm volatile("csrsi mstatus, 0x8");
-  */
 
   while(1) {
       uart_puts(UART0, "hi\n");
