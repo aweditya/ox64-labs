@@ -14,7 +14,7 @@
 static volatile uint32_t *const UART0_TX_CFG   = (volatile uint32_t *)0x2000a000;
 static volatile uint32_t *const UART0_RX_CFG   = (volatile uint32_t *)0x2000a004;
 
-static volatile uint32_t *const UART0_BAUD      = (volatile uint32_t *)0x2000a008;
+static volatile uint32_t *const UART0_BAUD     = (volatile uint32_t *)0x2000a008;
 
 // disabling uart interrupts for now. probably a good
 // idea to have a separate structure for this
