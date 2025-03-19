@@ -92,10 +92,8 @@ static inline void vector_base_set(void *vec) {
             : "r" (base));
 }
 
-_attribute__((aligned(4))) void handler(void) {
+__attribute__((aligned(4))) void handler(void) {
     uart_puts(UART0, "Inside handler\n");
-    uint32_t stat = GET32(timer1_match_status);
-    itoa_hex(stat);
 
     uint64_t mepc;
     asm volatile("csrr %0, mepc" : "=r"(mepc));
@@ -115,15 +113,6 @@ _attribute__((aligned(4))) void handler(void) {
     uart_puts(UART0, "MTVAL: ");
     itoa_hex(mtval);
     uart_putc(UART0, '\n');
-
-    // REMOVE: move back above mepc line 247??
-    uint32_t target = intr_req_response();
-    uart_puts(UART0, "target: ");
-    itoa_hex((uint64_t)target);
-    if (target == 0)
-        return;
-
-    intr_completion(target);
 }
 
 void disable_interrupts(void) {
@@ -136,40 +125,42 @@ void enable_interrupts(void) {
 
 
 typedef struct {
-    uint32_t ppn    : 28;
-    uint32_t rsvd1  : 16;
-    uint32_t asid   : 16;
-    uint32_t mode   : 4;
-} satp_t;
+    uint64_t ppn    : 28;
+    uint64_t rsvd1  : 16;
+    uint64_t asid   : 16;
+    uint64_t mode   : 4;
+} __attribute__((packed)) satp_t;
 
 // Pg. 65ish
 typedef struct {
-    uint32_t valid  : 1;
-    uint32_t exec   : 1; // executable
-    uint32_t user   : 1; 
-    uint32_t glbl   : 1;
-    uint32_t accsd  : 1; // accessed
-    uint32_t dirty  : 1;
-    uint32_t rsw    : 2; // 
-    uint32_t ppn0   : 9;
-    uint32_t ppn1   : 9;
-    uint32_t ppn2   : 10;
-    uint32_t rsvd   : 21;
-    uint32_t undef  : 1;
-    uint32_t rsvd   : 1;
-    uint32_t buff   : 1; // bufferable
-    uint32_t c      : 1; // cacheable (if we want to enable caching might be necessary)
-    uint32_t so     : 1; // strong order (access order required by memory)
-} pte_t;
+    uint64_t valid  : 1;
+    uint64_t read   : 1;
+    uint64_t write  : 1;
+    uint64_t exec   : 1; // executable
+    uint64_t user   : 1; 
+    uint64_t glbl   : 1;
+    uint64_t accsd  : 1; // accessed
+    uint64_t dirty  : 1;
+    uint64_t rsw    : 2; // 
+    uint64_t ppn0   : 9;
+    uint64_t ppn1   : 9;
+    uint64_t ppn2   : 10;
+    uint64_t rsvd1  : 21;
+    uint64_t undef  : 1;
+    uint64_t rsvd2  : 1;
+    uint64_t buff   : 1; // bufferable
+    uint64_t c      : 1; // cacheable (if we want to enable caching might be necessary)
+    uint64_t so     : 1; // strong order (access order required by memory)
+} __attribute__((packed)) pte_t;
 _Static_assert(sizeof(pte_t) == 8, "darn. pte_t not 8 bytes");
 
-static inline void write_satp(uint64_t value) {
+static inline void write_satp(satp_t value) {
     asm volatile("csrw satp, %0" :: "r"(value));
     asm volatile("sfence.vma"); // flush tlb
 }
 
-static inline uint64_t read_satp(void) {
-    uint64_t result;
+static inline satp_t read_satp(void) {
+    satp_t result;
     asm volatile ("sfence.vma"); // flush tlb (necessary?)
     asm volatile ("csrr satp, %0" : "=r"(result));
     return result;
@@ -189,14 +180,14 @@ bool mmu_is_disabled(void) {
 
 // enable mmu
 void mmu_enable(void) {
-    uint64_t value = read_satp();
+    satp_t value = read_satp();
     value.mode = 8; // mode = 8
     write_satp(value);
 }
 
 // disable mmu
 void mmu_disable(void) {
-    uint64_t value = read_satp();
+    satp_t value = read_satp();
     value.mode = 0; // mode = 0
     write_satp(value);
 }
@@ -206,8 +197,9 @@ void mmu_set_base_ppn(uint64_t ppn) {
     if (ppn & 0xFFFFFFF != ppn) {
         uart_puts(UART0, "base ppn should be a 28 bit number");
     }
-    uint64_t v = read_satp();
-    value.ppn = ppn; // mask out first 28 bits
+    satp_t v = read_satp();
+    v.ppn = ppn; // mask out first 28 bits
+    write_satp(v);
 }
 
 // set asid
@@ -215,14 +207,14 @@ void mmu_set_ctx(uint64_t asid) {
     if (asid & 0xFFFF != asid) {
         uart_puts(UART0, "asid should be a 16 bit number");
     }
-  uint64_t v = read_satp();
-  value.asid = asid;
+  satp_t v = read_satp();
+  v.asid = asid;
 }
 
 
 // create pte at base ppn
 // leaf pte, so this is a 1G page
-void create_pte_level1_leaf(uint64_t *pt, uint64_t ppn, uint16_t offset) {
+void create_pte_level1_leaf(pte_t *pt, volatile uint64_t ppn, uint16_t offset) {
   if ((ppn & 0x3FF) != ppn) {
     uart_puts(UART0, "ppn should be 10 bits for level 1 pte\n");
   }
@@ -230,8 +222,10 @@ void create_pte_level1_leaf(uint64_t *pt, uint64_t ppn, uint16_t offset) {
     uart_puts(UART0, "offset should be < 512\n");
   }
 
-  pte_t v = 0;
+  pte_t v = {0};
   v.valid = 1;
+  v.read = 1;
+  v.write = 1;
   v.exec = 1; // make executable
   v.user = 1;
   v.glbl = 1;
@@ -241,6 +235,7 @@ void create_pte_level1_leaf(uint64_t *pt, uint64_t ppn, uint16_t offset) {
   v.buff = 1;
   v.c = 1;
   v.so = 1; // should it be strongly ordered
+  pt[offset] = v;
 }
 
 /*
@@ -280,23 +275,23 @@ void kmain(void) {
   }
 
   // initialize base pt on stack
-  uint64_t[PTSIZE] pt = {0};
+  pte_t pt[PT_SIZE];
   
   // volatile to not optimize out writes
-  volatile uint64_t ppn = 0x51000000;
+  volatile uint64_t *ppn = (volatile uint64_t *)0x51000000;
   uint16_t offset = 256;
   // TODO: change this to take desired virtual -> physical addr mapping
-  create_pte_level1_leaf(pt, ppn, 256);
+  create_pte_level1_leaf(pt, (uint64_t)ppn, offset);
   
   // write to ppn, should map to va
   *ppn = 0xdeadbeef;
 
   // Enable virtual memory, and check that virtual address holds deadbeef
-  volatile uint64_t va = (256 << 12 << 9 << 9) /* VPN[2] */| (0 << 12 << 9) /*VPN[1] */ | (0 << 12) /* VPN[0] */| (0x000);
+  volatile uint64_t va = (256 << 30 ) /* VPN[2] */| (0 << 21) /*VPN[1] */ | (0 << 12) /* VPN[0] */| (0x000);
 
   enum { ASID = 1 };
   mmu_set_ctx(ASID);
-  mmu_set_base_ppn(&pt);
+  mmu_set_base_ppn((uint64_t)&pt[0]);
   mmu_enable();
 
   uart_puts(UART0, "value at va should be deafbeef\n");
@@ -304,7 +299,7 @@ void kmain(void) {
   itoa_hex(*va);
 
   while(1) {
-    uart_puts("...");
+    uart_puts(UART0, "...");
     delay_ms(1000);
   }
 }
