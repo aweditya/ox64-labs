@@ -10,36 +10,36 @@ enum {
     timer0_match_val0       = 0x2000a510,
     timer0_match_val1       = 0x2000a514,
     timer0_match_val2       = 0x2000a518,
-
-    timer0_ctr_val2         = 0x2000a52c,
-
-    timer0_match_status     = 0x2000a538,
-    timer0_match_intr_en    = 0x2000a544,
-
-    timer0_preload_val      = 0x2000a550,
-    timer0_preload_ctl      = 0x2000a55c,
-
-    timer0_intr_clr         = 0x2000a578,
-    timer_ctr_en_clr        = 0x2000a584,
-    timer_ctr_mode          = 0x2000a588,
-
-    timer0_match_intr_mode  = 0x2000a590,
-    timer_clk_div           = 0x2000a5bc,
-
     timer1_match_val0       = 0x2000a51c,
     timer1_match_val1       = 0x2000a520,
     timer1_match_val2       = 0x2000a524,
 
+    timer0_ctr_val          = 0x2000a52c,
     timer1_ctr_val          = 0x2000a530,
 
+    timer0_match_status     = 0x2000a538,
     timer1_match_status     = 0x2000a53c,
+
+    timer0_match_intr_en    = 0x2000a544,
     timer1_match_intr_en    = 0x2000a548,
 
+    timer0_preload_val      = 0x2000a550,
     timer1_preload_val      = 0x2000a554,
+
+    timer0_preload_ctl      = 0x2000a55c,
     timer1_preload_ctl      = 0x2000a560,
 
-    timer1_intr_clr         = 0x2000a578,
-    
+    timer0_intr_clr         = 0x2000a578,
+    timer1_intr_clr         = 0x2000a57c,
+
+    timer_ctr_en_clr        = 0x2000a584,
+
+    timer_ctr_mode          = 0x2000a588,
+
+    timer0_intr_level       = 0x2000a590,
+    timer1_intr_level       = 0x2000a594,
+
+    timer_clk_div           = 0x2000a5bc,
 };
 
 typedef struct {
@@ -111,9 +111,9 @@ void put32_check(volatile uint32_t *addr, uint32_t v) {
     }
 }
 
-void PUT32_check(uint32_t addr, uint32_t v) {
+void PUT32_check(uint64_t addr, uint32_t v) {
     uart_puts(UART0, "Writing to address: ");
-    itoa_hex((uint64_t)addr);
+    itoa_hex(addr);
     PUT32(addr, v);
     uart_puts(UART0, "Finished writing\n");
     if (GET32(addr) != v) {
@@ -123,17 +123,74 @@ void PUT32_check(uint32_t addr, uint32_t v) {
     }
 }
 
+// initialize timer0 with one match/comparator value
+void timer0_init(uint32_t match_val0, uint32_t match_val1, uint32_t match_val2) {
+    // Disable timer0 
+    uint32_t tcer = GET32(timer_ctr_en_clr);
+    tcer &= ~(1 << 1);
+    PUT32_check(timer_ctr_en_clr, tcer);
+
+    // clear interrupts
+    PUT32(timer0_intr_clr, 0b111);
+
+    // set mode to preload (clear bit 1)
+    uint32_t tcmr = GET32(timer_ctr_mode);
+    tcmr &= ~(1 << 1);
+    PUT32_check(timer_ctr_mode, tcmr);
+
+    // set preload value to 0
+    PUT32_check(timer0_preload_val, 0);
+
+    // set preload mode to match on comparator on the highest
+    // assumption match_val0 < match_val1 < match_val2
+    PUT32_check(timer0_preload_ctl, MATCH_CMP2);
+
+    // set comparator match values 
+    PUT32_check(timer0_match_val0, match_val0);
+    PUT32_check(timer0_match_val1, match_val1);
+    PUT32_check(timer0_match_val2, match_val2);
+
+    // set clock source, page 482
+    // Set clock to f32k
+    uint32_t x = GET32(timer_clk_src);
+    // mask out bits 3:0
+    x &= ~(0b1111 << 0);
+    x |= SRC_32K << 0;
+    PUT32_check(timer_clk_src, x);
+
+    // setup the clock divider. For now write 0 - no freq div
+    // 1 - div by 2
+    // and so on...
+    uint32_t tcdr = GET32(timer_clk_div);
+    tcdr &= ~(0xff << 8);
+    PUT32_check(timer_clk_div, tcdr);
+
+    // enable timer1 interrupts for match val 0
+    PUT32_check(timer0_match_intr_en, 0b111);
+}
+
+void timer0_start(void) {
+    // Enable timer0 by writing 1 to bit 1
+    uint32_t tcer = GET32(timer_ctr_en_clr);
+    tcer |= 1 << 1;
+    PUT32_check(timer_ctr_en_clr, tcer);
+}
+
+
 // initialize timer1 with one match/comparator value
 void timer1_init(uint32_t match_val0, uint32_t match_val1, uint32_t match_val2) {
-    // Disable timers and clear, page 492. write 1 to clear bits for both timer counters
-    // write 0s to enable bits
-    PUT32_check(timer_ctr_en_clr, (0b11 << 5));
+    // Disable timer1 
+    uint32_t tcer = GET32(timer_ctr_en_clr);
+    tcer &= ~(1 << 2);
+    PUT32_check(timer_ctr_en_clr, tcer);
 
     // clear interrupts
     PUT32(timer1_intr_clr, 0b111);
 
-    // set mode to preload
-    PUT32_check(timer_ctr_mode, 0);
+    // set mode to preload (clear bit 2)
+    uint32_t tcmr = GET32(timer_ctr_mode);
+    tcmr &= ~(1 << 2);
+    PUT32_check(timer_ctr_mode, tcmr);
 
     // set preload value to 0
     PUT32_check(timer1_preload_val, 0);
@@ -158,7 +215,9 @@ void timer1_init(uint32_t match_val0, uint32_t match_val1, uint32_t match_val2) 
     // setup the clock divider. For now write 0 - no freq div
     // 1 - div by 2
     // and so on...
-    PUT32_check(timer_clk_div, 0);
+    uint32_t tcdr = GET32(timer_clk_div);
+    tcdr &= ~(0xff << 16);
+    PUT32_check(timer_clk_div, tcdr);
 
     // enable timer1 interrupts for match val 0
     PUT32_check(timer1_match_intr_en, 0b111);
@@ -166,7 +225,9 @@ void timer1_init(uint32_t match_val0, uint32_t match_val1, uint32_t match_val2) 
 
 void timer1_start(void) {
     // Enable timer1 by writing 1 to bit 2
-    PUT32_check(timer_ctr_en_clr, 0b100);
+    uint32_t tcer = GET32(timer_ctr_en_clr);
+    tcer |= 1 << 2;
+    PUT32_check(timer_ctr_en_clr, tcer);
 }
 
 // PLIC_PRIOx sets the interrupt priority for source x
@@ -189,7 +250,6 @@ static inline uint64_t get_mtvec(void) {
     asm volatile("csrr %0, mtvec" : "=r"(result));
     return result;
 }
-
 
 static inline uint64_t get_mstatus(void) {
     uint64_t result;
@@ -251,7 +311,7 @@ static uint32_t intr_req_response(void) {
 
     // 3. if matches timer interrupt id
     if (mclaim_reg == IRQ_NUM_BASE + 61 || mclaim_reg == IRQ_NUM_BASE + 62) {
-        uart_puts(UART0, "Hit timer interrupt!");
+        uart_puts(UART0, "Hit timer interrupt!\n");
     }
 
     return mclaim_reg;
@@ -264,7 +324,7 @@ static void intr_completion(uint32_t target) {
     // write id of intr to corresponding claim/complete reg
     uint32_t *plic_h0_mclaim = (uint32_t *)(PLIC_H0_MCLAIM + mapbaddr);
     uint32_t mclaim_reg = get32(plic_h0_mclaim);
-    put32_check(plic_h0_mclaim, target);
+    put32(plic_h0_mclaim, target); // shouldnt be _check? c906 pg 95
 }
 
 __attribute__((aligned(4))) void handler(void) {
@@ -395,6 +455,8 @@ void kmain(void) {
   disable_all_plic_interrupts();
 
   // clear outstanding interrupts
+  // this may be insufficient?
+  // need to have interrupts enabled? bouf sdk does...
   uint32_t *plic_h0_mclaim = (uint32_t *)(PLIC_H0_MCLAIM + mapbaddr);
   uint32_t mclaim_reg = get32(plic_h0_mclaim);
   put32_check(plic_h0_mclaim, mclaim_reg);
@@ -407,52 +469,80 @@ void kmain(void) {
 
   uart_puts(UART0, "Starting setting interrupt priorities\n");
 
-  uart_puts(UART0, "Setting priority for interrupt #36");
-  set_intr_prio(IRQ_NUM_BASE + 36, 1);
-  uart_puts(UART0, "Setting priority for interrupt #37");
-  set_intr_prio(IRQ_NUM_BASE + 37, 1);
-  uart_puts(UART0, "Setting priority for interrupt #61");
-  set_intr_prio(IRQ_NUM_BASE + 61, 1);
-  uart_puts(UART0, "Setting priority for interrupt #62");
-  set_intr_prio(IRQ_NUM_BASE + 62, 1);
+  for (int i=4; i<=64; i++) {
+      uart_puts(UART0, "Setting priority for interrupt #\n");
+      itoa_hex(IRQ_NUM_BASE + i);
+      set_intr_prio(IRQ_NUM_BASE + i, 1);
+  }
 
   uart_puts(UART0, "Finished setting interrupt priorities\n");
   
+  timer0_init(10000, 20000, 32000);
   timer1_init(10000, 20000, 32000);
-  uint32_t ctr = GET32(timer1_ctr_val);
-  uart_puts(UART0, "Initial counter after timer init: ");
-  itoa_hex(ctr);
+  uint32_t ctr0 = GET32(timer0_ctr_val);
+  uint32_t ctr1 = GET32(timer1_ctr_val);
+  uart_puts(UART0, "Initial counter0 after timer init: ");
+  itoa_hex(ctr0);
+  uart_puts(UART0, "Initial counter1 after timer init: ");
+  itoa_hex(ctr1);
   
-  // enable plic interrupts
-  uart_puts(UART0, "Enabling interrupt #36");
-  enable_plic_interrupt(IRQ_NUM_BASE + 36);
-  uart_puts(UART0, "Enabling interrupt #37");
-  enable_plic_interrupt(IRQ_NUM_BASE + 37);
-  uart_puts(UART0, "Enabling interrupt #61");
-  enable_plic_interrupt(IRQ_NUM_BASE + 61);
-  uart_puts(UART0, "Enabling interrupt #62");
-  enable_plic_interrupt(IRQ_NUM_BASE + 62);
+  mclaim_reg = get32(plic_h0_mclaim);
+  uart_puts(UART0, "Printing MCLAIM after stuff: ");
+  itoa_hex(mclaim_reg);
 
-  // uart_puts(UART0, "Checking pending status of interrupt #");
-  // itoa_hex(i);
-  // uint32_t pending = check_intr_pending(IRQ_NUM_BASE + i);
-  // itoa_hex(pending);
+  // enable plic interrupts
+  for (int i=4; i<=64; i++) {
+      uart_puts(UART0, "Enabling interrupt: ");
+      itoa_hex(IRQ_NUM_BASE + i);
+      enable_plic_interrupt(IRQ_NUM_BASE + i);
+  }
+  // uart_puts(UART0, "Enabling interrupt #61\n");
+  // enable_plic_interrupt(IRQ_NUM_BASE + 61);
+  // uart_puts(UART0, "Enabling interrupt #62\n");
+  // enable_plic_interrupt(IRQ_NUM_BASE + 62);
+  // uint32_t *plic_h0_mie_base = (uint32_t *)(PLIC_H0_MIE_BASE + mapbaddr);
+  // put32_check(plic_h0_mie_base + 2, 0xffffffff);
+
+
+  for (int i=4; i<=66; i++) {
+      uart_puts(UART0, "Checking pending status of interrupt #");
+      itoa_hex(IRQ_NUM_BASE + i);
+      uint32_t pending = check_intr_pending(IRQ_NUM_BASE + i);
+      itoa_hex(pending);
+  }
 
   // enable external interrupts
   enable_ext_interrupts();
 
-  // start the timer
-  timer1_start();
-
   // enable all interrupts (plic + clint)
   // this is a global enable
-  asm volatile("csrsi mstatus, 0x8");
+  enable_interrupts();
+
+  // start the timer
+  timer0_start();
+  timer1_start();
+
+  mclaim_reg = get32(plic_h0_mclaim);
+  uart_puts(UART0, "Printing MCLAIM after more stuff: ");
+  itoa_hex(mclaim_reg);
+    
+  uint32_t *plic_ip_base = (uint32_t *)(PLIC_IP_BASE + mapbaddr);
+  uint32_t ip_reg = get32(plic_ip_base + ((IRQ_NUM_BASE + 61) >> 5));
+  ip_reg |= 1 << ((IRQ_NUM_BASE + 61) & 0b11111);
+  put32(plic_ip_base + ((IRQ_NUM_BASE + 61) >> 5), ip_reg);
 
   while(1) {
       // uint32_t ctr = GET32(timer1_ctr_val);
       // itoa_hex(ctr);
-      uint32_t stat = GET32(timer1_match_status);
-      itoa_hex(stat);
+      // uint64_t mip = get_mip();
+      // itoa_hex(mip);
+      uint32_t stat0 = GET32(timer1_match_status);
+      uart_puts(UART0, "stat0: ");
+      itoa_hex(stat0);
+      // uint32_t stat1 = GET32(timer1_match_status);
+      // uart_puts(UART0, "stat1: ");
+      // itoa_hex(stat1);
       // asm volatile("wfi");
+      delay_ms(100);
   }
 }
