@@ -4,6 +4,8 @@
 
 #define IRQ_NUM_BASE 16 // pg 45 BL808
 
+#define PT_SIZE 512
+
 // Helper function to convert an integer to a hexadecimal string and print using putc
 static void itoa_hex(uint64_t num) {
     static const char hex_digits[] = "0123456789ABCDEF";
@@ -176,17 +178,26 @@ static inline uint64_t read_satp(void) {
 // Page 64
 bool mmu_is_enabled(void) {
     // check that mode is 8
-    return (read_satp & (0xF << 60)) == 0x8;
+    satp_t v = read_satp();
+    return v.mode == 0x8;
 }
 bool mmu_is_disabled(void) {
     // check that mode is 0
-    return (read_satp & (0xF << 60)) == 0;
+    satp_t v = read_satp();
+    return v.mode == 0;
 }
 
 // enable mmu
 void mmu_enable(void) {
     uint64_t value = read_satp();
-    value |= 0x8 << 60; // mode = 8
+    value.mode = 8; // mode = 8
+    write_satp(value);
+}
+
+// disable mmu
+void mmu_disable(void) {
+    uint64_t value = read_satp();
+    value.mode = 0; // mode = 0
     write_satp(value);
 }
 
@@ -196,12 +207,61 @@ void mmu_set_base_ppn(uint64_t ppn) {
         uart_puts(UART0, "base ppn should be a 28 bit number");
     }
     uint64_t v = read_satp();
-    value &= ~0xFFFFFFF; // mask out first 28 bits
-    value |= ppn; // load pnp into first 28 bits
+    value.ppn = ppn; // mask out first 28 bits
 }
 
 // set asid
-void 
+void mmu_set_ctx(uint64_t asid) {
+    if (asid & 0xFFFF != asid) {
+        uart_puts(UART0, "asid should be a 16 bit number");
+    }
+  uint64_t v = read_satp();
+  value.asid = asid;
+}
+
+
+// create pte at base ppn
+// leaf pte, so this is a 1G page
+void create_pte_level1_leaf(uint64_t *pt, uint64_t ppn, uint16_t offset) {
+  if ((ppn & 0x3FF) != ppn) {
+    uart_puts(UART0, "ppn should be 10 bits for level 1 pte\n");
+  }
+  if ((offset & 0x1FF) != offset) { 
+    uart_puts(UART0, "offset should be < 512\n");
+  }
+
+  pte_t v = 0;
+  v.valid = 1;
+  v.exec = 1; // make executable
+  v.user = 1;
+  v.glbl = 1;
+  v.accsd = 1; // o/w page fault ? pg. 66
+  v.dirty = 1; // allows writes (dirty)
+  v.ppn2 = ppn;
+  v.buff = 1;
+  v.c = 1;
+  v.so = 1; // should it be strongly ordered
+}
+
+/*
+    uint32_t valid  : 1;
+    uint32_t exec   : 1; // executable
+    uint32_t user   : 1; 
+    uint32_t glbl   : 1;
+    uint32_t accsd  : 1; // accessed
+    uint32_t dirty  : 1;
+    uint32_t rsw    : 2; // 
+    uint32_t ppn0   : 9;
+    uint32_t ppn1   : 9;
+    uint32_t ppn2   : 10;
+    uint32_t rsvd   : 21;
+    uint32_t undef  : 1;
+    uint32_t rsvd   : 1;
+    uint32_t buff   : 1; // bufferable
+    uint32_t c      : 1; // cacheable (if we want to enable caching might be necessary)
+    uint32_t so     : 1; // strong order (access order required by memory)
+*/
+
 
 // Initialize mmu
 void mmu_init(void) {
@@ -214,7 +274,37 @@ void mmu_init(void) {
 
 void kmain(void) {
   uart_init(UART0, 115200);
+  
+  if (mmu_is_disabled()) {
+    uart_puts(UART0, "mmu is disabled to begin as expected\n");
+  }
+
+  // initialize base pt on stack
+  uint64_t[PTSIZE] pt = {0};
+  
+  // volatile to not optimize out writes
+  volatile uint64_t ppn = 0x51000000;
+  uint16_t offset = 256;
+  // TODO: change this to take desired virtual -> physical addr mapping
+  create_pte_level1_leaf(pt, ppn, 256);
+  
+  // write to ppn, should map to va
+  *ppn = 0xdeadbeef;
+
+  // Enable virtual memory, and check that virtual address holds deadbeef
+  volatile uint64_t va = (256 << 12 << 9 << 9) /* VPN[2] */| (0 << 12 << 9) /*VPN[1] */ | (0 << 12) /* VPN[0] */| (0x000);
+
+  enum { ASID = 1 };
+  mmu_set_ctx(ASID);
+  mmu_set_base_ppn(&pt);
+  mmu_enable();
+
+  uart_puts(UART0, "value at va should be deafbeef\n");
+
+  itoa_hex(*va);
 
   while(1) {
+    uart_puts("...");
+    delay_ms(1000);
   }
 }
