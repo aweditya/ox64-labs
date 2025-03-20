@@ -60,6 +60,7 @@ important registers:
 - set bit 2 (enable free run mode)
 - set bits 8:10 to 7 (7 data bits)
 - set bits 11:12 to 2 (1 stop bit, register uses units of 0.5)
+
 we use free run mode (described on pg 404) so the transmitter continues to send while there is data in the tx fifo
 
 ### to enable rx, write to urx_config
@@ -70,7 +71,40 @@ we use free run mode (described on pg 404) so the transmitter continues to send 
 - read fifo_config_1 bits 0:5 to get the number of free bits in the tx fifo, if not 0 can add more
 - then just put char in uart_fifo_wdata
 
-## to receive a char
+### to receive a char
 - read fifo_config_1 bits 8:13 to get the number of available bits in the rx fifo, if greater than 0 can read
 - then just read from uart_fifo_rdata bits 0:7
 - read from uart_fifo_rdata
+
+## Interrupts
+
+Control registers
+- MSTATUS control register, c906 pg 618-621
+  - bit 7, MIE, used for global interrupt enable/disable
+- MIE (machine interrupt enable) control register, c906 pg 623-624
+  - also called MIE, yes, but its own register not the MSTATUS bit
+  - bit 3, MSIE, software interrupt enable
+  - bit 7, MTIW, timer interrupt enable
+  - bit 11, MEIE, external interrupt enable
+- MTVEC (vector base addr) control register, c906 pg 624-625
+  - put address of interrupt handler function here 
+  - lower two bits are used to set mode, we use 00 so handler catches both exceptions and interrupts
+- MEPC, c906 pg 625
+  - check to get PC to be returned when CPU exits exception (16 bit aligned)
+- MCAUSE, c906 pg 626
+  - check to get vector number of events that trigger exceptions
+- MTVLA, c906 pg 19-20
+ - table on 20 describes what value it holds depending on type of exception
+- MIP (interrupt pending) control register, c906 pg 626-628
+  - check to see if interrupts are pending
+
+## CLINT (core local interrupts)
+
+CLINT registers
+
+Have to offset all memory access by 0xe0000000, where did we find this? had to look at the boufallo sdk :(
+
+- MSIP0 (software interrupt pending), c906 pg 84
+- MTIMECMPL0 (timer compare value lower 32 bits), c906 pg 84
+- MTIMECMPH0 (timer compare value upper 32 bits), c906 pg 84
+
