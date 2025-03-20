@@ -1,4 +1,9 @@
-#include clint.h
+#define LOG_LEVEL 3
+#include "lib.h"
+
+static volatile uint32_t *const MSIP0 = (volatile uint32_t *)0xe4000000;
+static volatile uint32_t *const MTIMECMPL0 = (volatile uint32_t *)0xe4004000;
+static volatile uint32_t *const MTIMECMPH0 = (volatile uint32_t *)0xe4004004;
 
 // Helper function to convert an integer to a hexadecimal string and print using putc
 void itoa_hex(uint64_t num) {
@@ -12,26 +17,6 @@ void itoa_hex(uint64_t num) {
     for (int i = 60; i >= 0; i -= 4) {
         uart_putc(UART0, hex_digits[(num >> i) & 0xF]);
     }   
-    uart_putc(UART0, '\n');
-}
-
-// void handler(void) {
-__attribute__((aligned(4))) void handler(void) {
-    uart_puts(UART0, "inside handler\n");
-    uint64_t mepc;
-    asm volatile("csrr %0, mepc" : "=r"(mepc));
-
-    uint64_t mcause;
-    asm volatile("csrr %0, mcause" : "=r"(mcause));
-
-    uint64_t mtval;
-    asm volatile("csrr %0, mtval" : "=r"(mtval));
-
-    itoa_hex(mepc);
-    uart_putc(UART0, '\n');
-    itoa_hex(mcause);
-    uart_putc(UART0, '\n');
-    itoa_hex(mtval);
     uart_putc(UART0, '\n');
 }
 
@@ -57,16 +42,37 @@ void enable_timer_interrupts(void) {
     return;
 }
 
-void disable_sw_interrupts(void) {
-    asm volatile("csrci mie, 0x8");
-}
+__attribute__((aligned(4))) void handler(void) {
+    uart_puts(UART0, "inside handler\n");
+    uint64_t mepc;
+    asm volatile("csrr %0, mepc" : "=r"(mepc));
 
-void enable_sw_interrupts(void) {
-    asm volatile("csrsi mie, 0x8");
-}
+    uint64_t mcause;
+    asm volatile("csrr %0, mcause" : "=r"(mcause));
 
-void gen_sw_interrupts(void) {
-    put32(MSIP0, 0x1);
+    uint64_t mtval;
+    asm volatile("csrr %0, mtval" : "=r"(mtval));
+
+    uint32_t mtime_cmp_lo = get32(MTIMECMPL0);
+    uint32_t mtime_cmp_hi = get32(MTIMECMPH0);
+    uart_puts(UART0, "MTIMECMPL0: ");
+    itoa_hex(mtime_cmp_lo);
+    uart_puts(UART0, "MTIMECMPH0: ");
+    itoa_hex(mtime_cmp_hi);
+
+    mtime_cmp_lo += 0xffffff;
+    put32(MTIMECMPL0, mtime_cmp_lo);
+    put32(MTIMECMPH0, mtime_cmp_hi);
+
+    uart_puts(UART0, "MEPC: ");
+    itoa_hex(mepc);
+    uart_puts(UART0, "MCAUSE: ");
+    itoa_hex(mcause);
+    uart_puts(UART0, "MTVAL: ");
+    itoa_hex(mtval);
+
+    enable_timer_interrupts();
+    enable_interrupts();
 }
 
 void my_timer_init(uint32_t mtime_cmp_lo, uint32_t mtime_cmp_hi) {
@@ -80,44 +86,44 @@ void my_timer_init(uint32_t mtime_cmp_lo, uint32_t mtime_cmp_hi) {
     enable_timer_interrupts();
 }
 
-inline uint64_t get_mtvec(void) {
+static inline uint64_t get_mtvec(void) {
     uint64_t result;
     asm volatile("csrr %0, mtvec" : "=r"(result));
     return result;
 }
 
 
-inline uint64_t get_mstatus(void) {
+static inline uint64_t get_mstatus(void) {
     uint64_t result;
     asm volatile("csrr %0, mstatus" : "=r"(result));
     return result;
 }
 
-inline uint64_t get_mie(void) {
+static inline uint64_t get_mie(void) {
     uint64_t result;
     asm volatile("csrr %0, mie" : "=r"(result));
     return result;
 }
 
-inline uint64_t get_satp(void) {
+static inline uint64_t get_satp(void) {
     uint64_t result;
     asm volatile("csrr %0, satp" : "=r"(result));
     return result;
 }
 
-inline uint64_t get_mip(void) {
+static inline uint64_t get_mip(void) {
     uint64_t result;
     asm volatile("csrr %0, mip" : "=r"(result));
     return result;
 }
 
-inline uint64_t get_mxstatus(void) {
+static inline uint64_t get_mxstatus(void) {
     uint64_t result;
     asm volatile("csrr %0, mxstatus" : "=r"(result));
     return result;
 }
 
-inline void vector_base_set(void *vec) {
+static inline void vector_base_set(void *vec) {
     // uint64_t base = (uint64_t)vec;
     // base = base << 2;
     uint64_t *base = (uint64_t *)vec;
@@ -133,24 +139,14 @@ void kmain(void) {
   disable_interrupts();
   disable_timer_interrupts();
 
-  // disable_sw_interrupts();
-
-  my_timer_init(0x5000, 0x0);
+  my_timer_init(0xffffff, 0x0);
   vector_base_set((uint64_t *)handler);
-
-  // enable_sw_interrupts();
 
   enable_timer_interrupts();
   enable_interrupts();
-  uart_puts(UART0, "thx man!\n");
-  // gen_sw_interrupts();
-  // uint32_t x = get32(MSIP0);
-
-  uart_puts(UART0, "i got you!\n");
 
   while(1) {
-      // itoa_hex(x);
-      // delay_ms(1000);
-      asm volatile("wfi");
+      uart_puts(UART0, "hi\n");
+      delay_ms(1000);
   }
 }
