@@ -1,13 +1,13 @@
 # Bare-metal Programming with the Ox64 Board
 
-## GPIO
-BL808 pages 54 - 168 are the chapter on GPIO
+## GPIO: BL808 pages 54 - 168
 
 ### pg 54-55 have the function list for the gpio function select bits
 right now the only important one is 11 for GPIO
 
 ### pg 64 - gpio_cfg_0
 Address is 0x200008c4, further pins increment addr by 4
+
 Important bits:
 - 0 - input enable
 - 6 - output enable
