@@ -93,10 +93,19 @@ Control registers
   - check to get PC to be returned when CPU exits exception (16 bit aligned)
 - MCAUSE, c906 pg 626
   - check to get vector number of events that trigger exceptions
-- MTVLA, c906 pg 19-20
- - table on 20 describes what value it holds depending on type of exception
+- MTVAL, c906 pg 19-20
+  - table on 20 describes what value it holds depending on type of exception
 - MIP (interrupt pending) control register, c906 pg 626-628
   - check to see if interrupts are pending
+- MSIP0 (software interrupt pending), c906 pg 84
+
+## Software Interrupts
+
+to enable software interrupts, make sure you enable global interrupts in MSTATUS, and enable software interrupts in the MIE
+
+to generate software interrupt, write 1 to MSIP0
+
+to clear software interrupt, write 0 to MSIP0
 
 ## CLINT (core local interrupts)
 
@@ -104,7 +113,15 @@ CLINT registers
 
 Have to offset all memory access by 0xe0000000, where did we find this? had to look at the boufallo sdk :(
 
-- MSIP0 (software interrupt pending), c906 pg 84
 - MTIMECMPL0 (timer compare value lower 32 bits), c906 pg 84
 - MTIMECMPH0 (timer compare value upper 32 bits), c906 pg 84
 
+to enable timer interrupts, make sure you enable global interrupts in MSTATUS, and enable timer interrupts in the MIE
+
+then it's as simple as writing to MTIMECMPL0 and MTIMECMPH0 the timer value you want to fault upon reaching
+
+however, no way to reset the counter. Instead, in the handler, can increment MTIMECMP by some value. Since it's a 64 bit value, it probably won't wrap around anytime soon! 
+
+## PLIC
+
+IMPORTANT!!: all PLIC addrs must be offset by the value in the mapbaddr register (c906 pg 637). This was very painful to find out
