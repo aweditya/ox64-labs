@@ -122,10 +122,27 @@ then it's as simple as writing to MTIMECMPL0 and MTIMECMPH0 the timer value you 
 
 however, no way to reset the counter. Instead, in the handler, can increment MTIMECMP by some value. Since it's a 64 bit value, it probably won't wrap around anytime soon! 
 
-## PLIC (not working...)
-c906 pg 88 - 95
+## PLIC (not working...) c906 pg 88 - 95
+important registers
+- PLIC_PRIO1 - set priority for interrupt 1, there are 1024 of these
+- PLIC_IP0 - the interrupts pending for interrupts 1 to 31, there are 31 of these
+- PLIC_H0_MIE0 interrupt enable register for interrupts 1-31, there are 31 of these but the ox only uses the first 3 (writing to others causes a fault)
+- PLIC_H0_MTH - set the interrupt threshold value, only interrupts with higher priority than this register will be triggered
+- PLIC_H0_MCLAIM - use to check what interrupt has been generated. need to write the value it holds back to itself to clear an interrupt 
 
 all PLIC addrs must be offset by the value in the mapbaddr register (c906 pg 637). Is this mentioned anywhere in the PLIC chapter? No, of course not
+
+also B808 registers we need (pg 480-482 for list of all of them w/ descriptions following)
+- TCCR - set the timer clock source since the chip has a few options
+- TMR - set match values for the timers, three possible for each
+- TCR - current value of the timer counter
+- TSR - gives which match values the timer has matched
+- TIER - use to enable interrupts for specific match values
+- TPLVR - set preload value to reset timer to
+- TPLCR - set which match value to reset to preload val on
+- TICR - clear timer interrupts
+- TCER - enable or clear counter
+- TCDR - clock division values
 
 as best as we can tell, setup process for plic in general is
 - clear outstanding interrupts by writing back mclaim register value to itself
@@ -143,3 +160,5 @@ to set up timer interrupts
 - set clock source
 - set clock freq divider (divides clock frequency by register val + 1 (so 0 is no division, 1 is divide by 2, etc))
 - enable timer interrupts for one of the match values
+
+currently, we can see the timer counting up and wrapping around when it hits the match value, and even setting the timer match status register. However, it's just not triggering interrupts. We can manually trigger a timer interrupt by writing to the corresponding interrupt pending register, but we don't know why the plic timer isn't triggering those itself.
