@@ -162,3 +162,8 @@ to set up timer interrupts
 - enable timer interrupts for one of the match values
 
 currently, we can see the timer counting up and wrapping around when it hits the match value, and even setting the timer match status register. However, it's just not triggering interrupts. We can manually trigger a timer interrupt by writing to the corresponding interrupt pending register, but we don't know why the plic timer isn't triggering those itself.
+
+## Single-stepping (...not working)
+
+## Virtual Memory (not... working)
+importantly you need to be in supervisor or user mode for the mmu to actually do anything
