@@ -122,6 +122,24 @@ then it's as simple as writing to MTIMECMPL0 and MTIMECMPH0 the timer value you 
 
 however, no way to reset the counter. Instead, in the handler, can increment MTIMECMP by some value. Since it's a 64 bit value, it probably won't wrap around anytime soon! 
 
-## PLIC
+## PLIC (not working...)
+c906 pg 88 - 95
 
-IMPORTANT!!: all PLIC addrs must be offset by the value in the mapbaddr register (c906 pg 637). This was very painful to find out
+all PLIC addrs must be offset by the value in the mapbaddr register (c906 pg 637). Is this mentioned anywhere in the PLIC chapter? No, of course not
+
+as best as we can tell, setup process for plic in general is
+- clear outstanding interrupts by writing back mclaim register value to itself
+- set interrupt threshold to 0 to accept all interrupts
+- set interrupt priorities for interrupts you want to 1
+- enable external interrupts in MIE
+- enable global interrupts in MSTATUS
+
+to set up timer interrupts
+- clear timer interrupts by writing to clear register
+- set mode to preload in control register
+- set preload value to something (counter will reset to this after hitting match val)
+- set preload match val by writing to preload ctrl register (which match register to reset to preload val after matching)
+- set match value register(s) with value you want clock to fault on
+- set clock source
+- set clock freq divider (divides clock frequency by register val + 1 (so 0 is no division, 1 is divide by 2, etc))
+- enable timer interrupts for one of the match values
