@@ -3,28 +3,43 @@
 enum {
     timer_clk_src           = 0x2000a500,
 
-    timer2_match_val0       = 0x2000a510,
-    timer2_match_val1       = 0x2000a514,
-    timer2_match_val2       = 0x2000a518,
+    timer0_match_val0       = 0x2000a510,
+    timer0_match_val1       = 0x2000a514,
+    timer0_match_val2       = 0x2000a518,
 
-    timer2_ctr_val2         = 0x2000a52c,
+    timer0_ctr_val2         = 0x2000a52c,
 
-    timer2_match_status     = 0x2000a538,
-    timer2_match_intr_en    = 0x2000a544,
+    timer0_match_status     = 0x2000a538,
+    timer0_match_intr_en    = 0x2000a544,
 
-    timer2_preload_val      = 0x2000a550,
-    timer2_preload_ctl      = 0x2000a55c,
+    timer0_preload_val      = 0x2000a550,
+    timer0_preload_ctl      = 0x2000a55c,
 
-    timer2_intr_clr         = 0x2000a578,
+    timer0_intr_clr         = 0x2000a578,
     timer_ctr_en_clr        = 0x2000a584,
     timer_ctr_mode          = 0x2000a588,
 
-    timer2_match_intr_mode  = 0x2000a590,
+    timer0_match_intr_mode  = 0x2000a590,
     timer_clk_div           = 0x2000a5bc,
+
+    timer1_match_val0       = 0x2000a51c,
+    timer1_match_val1       = 0x2000a520,
+    timer1_match_val2       = 0x2000a524,
+
+    timer1_ctr_val          = 0x2000a530,
+
+    timer1_match_status     = 0x2000a53c,
+    timer1_match_intr_en    = 0x2000a548,
+
+    timer1_preload_val      = 0x2000a554,
+    timer1_preload_ctl      = 0x2000a560,
+
+    timer1_intr_clr         = 0x2000a578,
+    
 };
 
 typedef struct {
-    uint32_t clk_src_timer2     : 4;
+    uint32_t clk_src_timer0     : 4;
     uint32_t clk_src_timer3     : 4;
     uint32_t clk_src_wdt        : 4;
     uint32_t rsvd               : 4;
@@ -34,17 +49,17 @@ typedef struct {
 
 typedef struct {
     uint32_t rsvd1          : 1;
-    uint32_t timer2_en      : 1;
+    uint32_t timer0_en      : 1;
     uint32_t timer3_en      : 1;
     uint32_t rsvd2          : 2;
-    uint32_t timer2_cnt_clr : 1;
+    uint32_t timer0_cnt_clr : 1;
     uint32_t timer3_cnt_clr : 1;
     uint32_t rsvd3          : 25;
 } __atrribute__((packed)) tcer_t;
 
 typedef struct {
     uint32_t rsvd               : 8;
-    uint32_t timer2_clk_div_val : 8;
+    uint32_t timer0_clk_div_val : 8;
     uint32_t timer3_clk_div_val : 8;
     uint32_t wdt_clk_div_val    : 8;
 } __attribute__((packed)) tcdr_t;
@@ -65,10 +80,10 @@ enum {
     MATCH_CMP2 = 3,
 };
 
-// initialize timer2
+// initialize timer0
 // using only one match value which is match_val0 
 // for the time being
-void timer2_init(uint32_t match_val0) {
+void timer0_init(uint32_t match_val0) {
     // disasble timers, clear counters
     PUT32(timer_ctr_en_clr, (1<<6)|(1<<5));
     // clear interrupts
@@ -76,24 +91,24 @@ void timer2_init(uint32_t match_val0) {
 
     // set clk src (use 32K for now)
     tccr_t tccr = get32_type(tccr_t, (uint32_t *)timer_clk_src);
-    tccr.clk_src_timer2 = SRC_32K;
+    tccr.clk_src_timer0 = SRC_32K;
     put32_type(tccr_t, (uint32_t *)timer_clk_src, tccr);
 
     // setup counter mode
-    // timer2 compare val update align interrupt set to 0
+    // timer0 compare val update align interrupt set to 0
     // for now (might need to figure out what this is)
     PUT32(timer_ctr_mode, 0);
 
     // setup match_val0 
-    PUT32(timer2_match_val0, match_val0);
+    PUT32(timer0_match_val0, match_val0);
 
     // start with a preload value of 0
     // can add an argument later
-    PUT32(timer2_preload_val, 0);
+    PUT32(timer0_preload_val, 0);
 
     // setup comparison with 0
     // can add an argument to decide which one to match on
-    PUT32(timer2_preload_ctl, MATCH_CMP0);
+    PUT32(timer0_preload_ctl, MATCH_CMP0);
 
     // setup the clk divider
     // again, can have an argument for this
@@ -102,7 +117,46 @@ void timer2_init(uint32_t match_val0) {
     // and so on...
     PUT32(timer_clk_div, 31<<8);
 
-    // re-enable timer2
+    // re-enable timer0
     PUT32(timer_ctr_en_clr, 1<<1);
+}
+
+// initialize timer1 with one match/comparator value
+void timer1_init(uint32_t match_val1) {
+
+    // Disable timers and clear, page 492. write 1 to clear bits for both timer counters
+    // write 0s to enable bits
+    PUT32(timer_ctr_en_clr, (0b11 << 5));
+
+    // clear interrupts
+    PUT32(timer1_intr_clr, 0b111);
+
+    // set mode to preload
+    PUT32(timer_ctr_mode, 0);
+
+    // set preload value to 0
+    PUT32(timer1_preload_val, 0);
+
+    // set preload mode to match on comparator 0
+    PUT32(timer1_preload_ctl, 1);
+
+    // set comparator 0 match value to argument
+    PUT32(timer1_match_val0, match_val1);
+
+    // set clock source, page 482
+    // Set clock to f32k
+    uint32_t x = GET32(timer_clk_source);
+    // mask out bits 7:4
+    x &= (0b1111 << 4);
+    x |= (0b10000);
+    PUT32(timer_clk_source, x);
+
+    // setup the clock divider. For now write 0 - no freq div
+    // 1 - div by 2
+    // and so on...
+    PUT32(timer_clk_div, 0);
+
+    // Enable timer3 (timer1) by writing 1 to bit 2
+    PUT32(timer_ctr_en_clr, 0b100);
 }
 
