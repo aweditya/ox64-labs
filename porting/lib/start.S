@@ -10,6 +10,31 @@ _start:
   nop
   nop
 
+  # Allow exceptions/interrupts to be handled in S-mode
+  li t0, 0xffff
+  csrw medeleg, t0
+  csrw mideleg, t0
+
+  # Bit   Label
+  # 1     SIE
+  # 3     MIE
+  # 5     SPIE
+  # 7     MPIE
+  # 11:12 MPP
+  # By setting MPP to 0b01, we are saying that the
+  # CPU was in S-mode before entering the trap.
+  # Note that we are actually not trapping
+  # When we return from the "trap," we should be in
+  # S-mode
+  li t0, (0b01 << 11) | (1 << 5) | (1 << 1)
+  csrw mstatus, t0
+
+  # Enable interrupts in S-mode
+  # Bit   Label
+  # 1     SSIE
+  # 5     STIE
+  li t0, (1 << 5) | (1 << 1)
+
   call _cstart
 halt:
   nop
