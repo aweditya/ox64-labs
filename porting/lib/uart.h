@@ -12,4 +12,5 @@ char uart_getc(volatile struct uart *uart);
 bool uart_can_putc(volatile struct uart *uart);
 void uart_putc(volatile struct uart *uart, char c);
 void uart_puts(volatile struct uart *uart, const char *c);
+void uart_puthex64(uint64_t val);
 void uart_init(volatile struct uart *uart, unsigned baud);

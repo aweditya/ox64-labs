@@ -6,7 +6,7 @@ SRC=$(wildcard lib/*.c)
 
 OBJ = $(ASM:.S=.o) $(SRC:.c=.o)
 
-PREFIX=riscv64-unknown-elf
+PREFIX=riscv64-elf
 CC=$(PREFIX)-gcc
 AS=$(PREFIX)-gcc
 LD=$(PREFIX)-ld
@@ -23,7 +23,7 @@ LDFLAGS=-nostdlib -flto
 all: tags $(TARGETS)
 
 clean:
-	rm -f **/*.o **/*.elf **/*.bin **/*.d tags
+	rm -f *.o *.elf *.bin *.d tags
 
 tags: $(wildcard *.[chS])
 	ctags *.[chS]

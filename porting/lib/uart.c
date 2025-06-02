@@ -67,6 +67,14 @@ void uart_puts(volatile struct uart *uart, const char *c) {
   }
 }
 
+// added by carlos to debug (from chat)
+void uart_puthex64(uint64_t val) {
+    for (int i = 60; i >= 0; i -= 4) {
+        uint8_t nibble = (val >> i) & 0xF;
+        uart_putc(UART0, nibble < 10 ? '0' + nibble : 'a' + (nibble - 10));
+    }
+}
+
 void uart_init(volatile struct uart *uart, unsigned baud) {
   // p302
   uint32_t tx = 0;
