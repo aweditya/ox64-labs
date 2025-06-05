@@ -23,7 +23,7 @@ LDFLAGS=-nostdlib -flto
 all: tags $(TARGETS)
 
 clean:
-	rm -f *.o *.elf *.bin *.d tags
+	rm -f *.o *.elf *.bin *.d *.list tags
 
 tags: $(wildcard *.[chS])
 	ctags *.[chS]
