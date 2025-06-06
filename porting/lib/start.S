@@ -11,9 +11,9 @@ _start:
   nop
 
   # Allow exceptions/interrupts to be handled in S-mode
-  li t0, 0xffff
-  csrw medeleg, t0
-  csrw mideleg, t0
+  # li t0, 0xffff
+  # csrw medeleg, t0
+  # csrw mideleg, t0
 
   # Bit   Label
   # 1     SIE
@@ -49,6 +49,12 @@ _start:
   # Drop from machine mode to supervisor mode, starting at _cstart
   la t0, _cstart
   csrw mepc, t0
+
+  # Most permissive PMP configuration
+  li t0, -1
+  csrw pmpaddr0, t0
+  li t0, 0x1F
+  csrw pmpcfg0, t0
 
   # set up traps to see where we at
   la t0, m_trap_handler
