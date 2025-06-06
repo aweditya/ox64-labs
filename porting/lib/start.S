@@ -109,7 +109,3 @@ PUT64:
   fence iorw,iorw
   ret
 
-# .globl handler_trampoline
-# handler_trampoline:
-#   j handler
-#   ret
