@@ -142,7 +142,7 @@ bool mmu_is_disabled(void) {
 // Enable MMU
 void mmu_enable(void) {
     uint64_t value = read_satp();
-    value &= 0x0fffffffffffffff;
+    value &= ~((0xfLL) << 60);
     value |= Sv39 << 60; // mode = 8
     write_satp(value);
 }
@@ -150,7 +150,8 @@ void mmu_enable(void) {
 // Disable MMU
 void mmu_disable(void) {
     uint64_t value = read_satp();
-    value = 0;
+    value &= ~((0xfLL) << 60);
+    value |= BARE << 60; // mode = 0
     write_satp(value);
 }
 
@@ -215,20 +216,19 @@ void kmain(void) {
         }
     }
 
+    uart_puts(UART0, "Enabling MMU!\n");
+    mmu_enable();
+  
+    // check mmu is enabled
+    if (read_satp() >> 60 == Sv39) {
+        uart_puts(UART0, "MMU successfully enabled!\n");
+    }
+  
     while (1) {
         uart_puts(UART0, "Hello, world!\n");
         asm volatile("wfi");
     }
 
-//   
-//     uart_puts(UART0, "Enabling MMU!\n");
-//     mmu_enable();
-//   
-//     // check mmu is enabled
-//     if (read_satp() >> 60 == Sv39) {
-//         uart_puts(UART0, "MMU successfully enabled!\n");
-//     }
-//   
 //     // check we can put/get from address with mmu enabled 
 //     // (this all works as of right now)
 //     uint32_t cookie = 0xdeadbeef;
