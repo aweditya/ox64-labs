@@ -11,6 +11,7 @@ _start:
   nop
 
   # Allow exceptions/interrupts to be handled in S-mode
+  # Keep interrupt delegation off for the time being.
   # li t0, 0xffff
   # csrw medeleg, t0
   # csrw mideleg, t0
@@ -26,48 +27,55 @@ _start:
   # Note that we are actually not trapping
   # When we return from the "trap," we should be in
   # S-mode
-  # li t0, (0b01 << 11) | (1 << 5) | (1 << 1)
-  # li t0, (0b01 << 11)
-  # csrw mstatus, t0
-
   csrr t1, mstatus  
-  li    t2, ~(3 << 11)      # Clear bits 12:11 = MPP
+  li    t2, ~(0b11 << 11)	# Clear bits 12:11 = MPP
   and   t1, t1, t2
-  li   t0, (1 << 11) # MPP = S-mode
+  li   t0, (0b01 << 11)		# MPP = S-mode
   or   t1, t1, t0
+  li   t0, (1 << 7) | (1 << 5)	# Enable interrupts globally
   csrw mstatus, t1
 
   # Enable interrupts in S-mode, write to MIE
   # Bit   Label
   # 1     SSIE
+  # 3     MSIE
   # 5     STIE
-  # li t0, (1 << 5) | (1 << 1)
+  # 7	  MTIE
+  # Enable software and timer interrupts in both
+  # M- and S-mode
+  li t0, (1 << 7) | (1 << 5) | (1 << 3) | (1 << 1)
+  csrw mie, t0
+
+  # Clear all pending interrupts
   li t0, 0
-  csrw mie, t0 # disabling interrupts
-  csrw mip, t0 # clear pending interrupts
-  
-  # Drop from machine mode to supervisor mode, starting at _cstart
-  la t0, _cstart
-  csrw mepc, t0
+  csrw mip, t0
+
+  # Make sure the MMU is disabled
+  csrw satp, t0
 
   # Most permissive PMP configuration
+  # Let S-mode access physical memory
   li t0, -1
   csrw pmpaddr0, t0
   li t0, 0x1F
   csrw pmpcfg0, t0
+ 
+  # Drop from machine mode to supervisor mode, starting at _cstart
+  la t0, _cstart
+  csrw mepc, t0
 
-  # set up traps to see where we at
+  # Set up traps in M-mode (not doing interrupt delegation so we
+  # don't need an S-mode handler)
   la t0, m_trap_handler
   csrw mtvec, t0
 
-  # dumping stuff
+  # Initialize UART here for debugging purposes
+  call init_uart
+
+  # Dump the contents of some M-mode registers just for
+  # sanity checking
   call dump_csrs
-
-  # ecall
-
   mret
-  call _cstart 
-
 
 halt:
   nop
@@ -78,10 +86,7 @@ halt:
 m_trap_handler:
     call print_in_trap
     call dump_csrs
-
-    # Optional: infinite loop to halt
-1:  j 1b
-
+    mret
 
 .globl put32
 .globl PUT32

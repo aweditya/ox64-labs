@@ -28,6 +28,7 @@ SECTIONS
         _kcode_end = .;
         . = ALIGN(8);
     } > PSRAM
+
     .rodata : {
         . = ALIGN(8);
         _krodata_start = .;
@@ -36,6 +37,7 @@ SECTIONS
         . = ALIGN(8);
         _krodata_end = .;
     } > PSRAM
+
     .data : { 
         . = ALIGN(8);
         _kdata_start = .;
@@ -46,6 +48,7 @@ SECTIONS
         . = ALIGN(8);
         _kdata_end = .;
     } > PSRAM
+
     .bss : {
         . = ALIGN(8);
         _kbss_start = .;
@@ -76,7 +79,6 @@ SECTIONS
       . += __pt_size;
       . = ALIGN(0x1000);
     } > PSRAM
-
 
     .stack : {
       __stack_bottom__ = .;

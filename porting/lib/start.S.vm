@@ -65,7 +65,7 @@ _start:
   csrw mepc, t0
 
   # Set up traps in M-mode (not doing interrupt delegation so we
-  don't need an S-mode handler)
+  # don't need an S-mode handler)
   la t0, m_trap_handler
   csrw mtvec, t0
 
