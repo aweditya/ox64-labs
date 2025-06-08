@@ -4,7 +4,10 @@
 
 #define IRQ_NUM_BASE 16 // pg 45 BL808
 
-#define PT_SIZE 512
+#define PT_SIZE     1<<9
+#define PGOFF       1<<12
+#define PTESIZE     8
+#define VPN_BITS    9
 
 #define ASID    1LL
 #define BARE    0LL
@@ -13,9 +16,14 @@
 #define Sv57    10LL
 #define Sv64    11LL
 
-uint64_t pg1[PT_SIZE] __attribute__((section(".pg1")));
-uint64_t pg2[PT_SIZE] __attribute__((section(".pg2")));
-uint64_t pg3[PT_SIZE] __attribute__((section(".pg3")));
+uint64_t pg1[PT_SIZE] __attribute__((aligned(4096)));
+uint64_t pg2[PT_SIZE] __attribute__((aligned(4096)));
+uint64_t pg3[PT_SIZE][PT_SIZE] __attribute__((aligned(4096)));
+
+
+#define PSRAM_START 0x50000000
+#define PSRAM_SZ    64*1024*1024
+#define PSRAM_END   PSRAM_START+PSRAM_SZ
 
 void init_uart(void) {
     uart_init(UART0, 115200);
@@ -111,14 +119,13 @@ static inline void write_satp(uint64_t value) {
             : 
             : "r"(value));
     // Flush TLB after writing.
-    asm volatile("sfence.vma");
-
+    // asm volatile("sfence.vma");
 }
 
 static inline uint64_t read_satp(void) {
     uint64_t result;
     // Flush TLB before reading
-    asm volatile ("sfence.vma");
+    // asm volatile ("sfence.vma");
     asm volatile (
             "csrr %0, satp" 
             : "=r"(result)
@@ -130,38 +137,73 @@ static inline uint64_t read_satp(void) {
 bool mmu_is_enabled(void) {
     // check that mode is 8
     uint64_t v = read_satp();
-    return (v >> 60) == 0x8;
+    return (v >> 60) == Sv39;
 }
 
 bool mmu_is_disabled(void) {
     // check that mode is 0
     uint64_t v = read_satp();
-    return (v >> 60) == 0x0;
+    return (v >> 60) == BARE;
 }
 
 // Enable MMU
-void mmu_enable(void) {
-    uint64_t value = read_satp();
-    value &= ~((0xfLL) << 60);
-    value |= Sv39 << 60; // mode = 8
-    write_satp(value);
+void mmu_enable(uint64_t pg1_base) {
+    uint64_t satp = (Sv39 << 60) | (ASID << 44) | (pg1_base >> 12);
+    write_satp(satp);
 }
 
 // Disable MMU
 void mmu_disable(void) {
-    uint64_t value = read_satp();
-    value &= ~((0xfLL) << 60);
-    value |= BARE << 60; // mode = 0
-    write_satp(value);
+    write_satp(0);
 }
 
-// Initialize MMU
-void mmu_init(void) {
-    if (mmu_is_enabled()) {
-        uart_puts(UART0, "MMU should be disabled?");
+void check_identity_mapping(uint64_t va) {
+    uart_puts(UART0, "Checking mapping for VA = ");
+    uart_puthex64(va); uart_putc(UART0, '\n');
+
+    uint64_t vpn0 = (va >> 12) & 0x1FF;
+    uint64_t vpn1 = (va >> 21) & 0x1FF;
+    uint64_t vpn2 = (va >> 30) & 0x1FF;
+
+    uart_puts(UART0, "VPN2: "); uart_puthex64(vpn2); uart_putc(UART0, '\n');
+    uart_puts(UART0, "VPN1: "); uart_puthex64(vpn1); uart_putc(UART0, '\n');
+    uart_puts(UART0, "VPN0: "); uart_puthex64(vpn0); uart_putc(UART0, '\n');
+
+    uint64_t pte2 = pg1[vpn2];
+    if (!(pte2 & 0x1)) {
+        uart_puts(UART0, "Level 2 PTE invalid!\n");
+        uart_puthex64(pte2); uart_putc(UART0, '\n');
+        return;
     }
-     
-    mmu_enable();
+    uint64_t *l2 = (uint64_t *)((pte2 >> 10) << 12);
+
+    uint64_t pte1 = l2[vpn1];
+    if (!(pte1 & 0x1)) {
+        uart_puts(UART0, "Level 1 PTE invalid!\n");
+        uart_puthex64(pte1); uart_putc(UART0, '\n');
+        return;
+    }
+    uint64_t *l1 = (uint64_t *)((pte1 >> 10) << 12);
+
+    uint64_t pte0 = l1[vpn0];
+    if (!(pte0 & 0x1)) {
+        uart_puts(UART0, "Level 0 PTE invalid!\n");
+        uart_puthex64(pte0); uart_putc(UART0, '\n');
+        return;
+    }
+
+    // Leaf PTE: extract physical page number
+    uint64_t ppn = pte0 >> 10;
+    uint64_t pa = (ppn << 12) | (va & 0xFFF);
+
+    uart_puts(UART0, "Translated PA = ");
+    uart_puthex64(pa); uart_putc(UART0, '\n');
+
+    if (pa == va) {
+        uart_puts(UART0, "✅ Identity mapping verified!\n");
+    } else {
+        uart_puts(UART0, "❌ Mapping incorrect!\n");
+    }
 }
 
 void kmain(void) {
@@ -172,55 +214,69 @@ void kmain(void) {
     }
   
     uart_puts(UART0, "Printing the address of the page tables\n");
-    uart_puts(UART0, "pg1:\t"); uart_puthex64((uint64_t)pg1); uart_putc(UART0, '\n');
-    uart_puts(UART0, "pg2:\t"); uart_puthex64((uint64_t)pg2); uart_putc(UART0, '\n');
-    uart_puts(UART0, "pg3:\t"); uart_puthex64((uint64_t)pg3); uart_putc(UART0, '\n');
+    uint64_t pg1_base = (uint64_t)pg1;
   
     // 1. Write our page_table addr into satp
     uart_puts(UART0, "Printing the value we want to populate in the SATP register\n");
-    uint64_t satp = (BARE << 60) | (ASID << 44) | ((uint64_t)pg1 >> 12);
+    uint64_t satp = (Sv39 << 60) | (ASID << 44) | (pg1_base >> 12);
     uart_puts(UART0, "satp:\t"); uart_puthex64(satp); uart_putc(UART0, '\n');
-    write_satp(satp);
-    uart_puts(UART0, "Finished writing to SATP\n");
-  
-    if (read_satp() == satp) {
-        uart_puts(UART0, "Write to SATP went through as expected!\n");
-    } else {
-        uart_puts(UART0, "Write to SATP failed?\n");
-    }
+
+    uart_puthex64((uint64_t)pg1); uart_putc(UART0, '\n');
+    uart_puthex64((uint64_t)pg2); uart_putc(UART0, '\n');
+    uart_puthex64((uint64_t)pg3); uart_putc(UART0, '\n');
+
+//     while (1) {
+//         uart_puts(UART0, "Hello, world!\n");
+//         asm volatile("wfi");
+//     }
+
 
     uart_puts(UART0, "Manually setting up an identity page table mapping!\n");
-    // all pages
-    // level 1
-    for (uint64_t vpn2 = 0; vpn2 < 1<<9; vpn2++) {
-        // uart_puts(UART0, "vpn2: ");
-        // uart_puthex64(vpn2);
-        // pg1, pg2, pg3 are already 12-bit aligned
-        uint64_t idx_l1 = (uint64_t)(pg1)|(vpn2<<3) - (uint64_t)(pg1);
-        pg1[idx_l1] = (((uint64_t)pg2)<<10) | 1<<0;
-  
-        uart_puts(UART0, "level1 mapping done for: "); uart_puthex64(vpn2); uart_putc(UART0, '\n');
-  
-        // level 2
-        for (uint64_t vpn1 = 0; vpn1 < 1<<9; vpn1++) {
-            uint64_t idx_l2 = (uint64_t)(pg2)|(vpn1<<3) - (uint64_t)(pg2);
-            pg2[idx_l2] = (((uint64_t)pg3)<<10) | 1<<0;
-  
-            // level 3
-            for (uint64_t vpn0 = 0; vpn0 < 1<<9; vpn0++) {
-                uint64_t idx_l3 = (uint64_t)(pg3)|(vpn0<<3) - (uint64_t)(pg3);
-                uint64_t ppn = (vpn2<<18)|(vpn1<<9)|(vpn0);
-                // leaf reached
-                pg3[idx_l3] = (ppn<<10) | 1<<0 | 0b111 << 1;
-            }
-        }
+    uart_puthex64(PSRAM_START); uart_putc(UART0, '\n');
+    uart_puthex64(PSRAM_END); uart_putc(UART0, '\n');
+    for (uint64_t addr = PSRAM_START; addr < PSRAM_END; addr+=PGOFF) {
+        uart_puts(UART0, "Setting up mapping for addr="); uart_puthex64(addr); uart_putc(UART0, '\n');
+        uint64_t x = addr;
+        uint64_t vpn0 = (x >> 12) & 0x1ff;
+        x = x >> 12;
+
+        // Identity mapping
+        uint64_t ppn = x;
+
+        uint64_t vpn1 = (x >> VPN_BITS) & 0x1ff;
+        x = x >> VPN_BITS;
+
+        uint64_t vpn2 = (x >> VPN_BITS) & 0x1ff;
+        x = x >> VPN_BITS;
+
+        // Set R,W,X to be 111 (leaf node)
+        // V = 1
+        pg3[vpn1][vpn0] = (ppn << 10) | 0b111 << 1 | 1 << 0;
+
+        // Set R,W,X to be 000 (tree node which is not a leaf)
+        // V = 1
+        uint64_t pg3_base = (uint64_t)pg3[vpn1];
+        pg2[vpn1] = ((pg3_base >> 12) << 10) | 0b000 << 1 | 1 << 0;
+
+        // Set R,W,X to be 000 (tree node which is not a leaf)
+        // V = 1
+        uint64_t pg2_base = (uint64_t)pg2;
+        pg1[vpn2] = ((pg2_base >> 12) << 10) | 0b000 << 1 | 1 << 0;
+        uart_puts(UART0, "Some metadata\n");
+        uart_puthex64(vpn2); uart_putc(UART0, '\n');
+        uart_puthex64(vpn1); uart_putc(UART0, '\n');
+        uart_puthex64(vpn0); uart_putc(UART0, '\n');
     }
 
+    check_identity_mapping(0x50000000);
+    // check_identity_mapping(0x51000000);
+    // check_identity_mapping(0x53FFFFF0);
+
     uart_puts(UART0, "Enabling MMU!\n");
-    mmu_enable();
+    mmu_enable(pg1_base);
   
     // check mmu is enabled
-    if (read_satp() >> 60 == Sv39) {
+    if (mmu_is_enabled()) {
         uart_puts(UART0, "MMU successfully enabled!\n");
     }
   
@@ -228,23 +284,4 @@ void kmain(void) {
         uart_puts(UART0, "Hello, world!\n");
         asm volatile("wfi");
     }
-
-//     // check we can put/get from address with mmu enabled 
-//     // (this all works as of right now)
-//     uint32_t cookie = 0xdeadbeef;
-//     if (get32(&cookie) == 0xdeadbeef) {
-//         uart_puts(UART0, "get works\n");
-//     }
-//     uart_puts(UART0, "trying to put\n");
-//     put32(&cookie, 0xbeefbabe);
-//     if (get32(&cookie) == 0xbeefbabe) {
-//         uart_puts(UART0, "put works!!!!\n");
-//     } else {
-//         uart_puts(UART0, "put no work...\n");
-//     }
-//   
-//     while(1) {
-//       uart_puts(UART0, "...");
-//       delay_ms(1000);
-//     }
 }

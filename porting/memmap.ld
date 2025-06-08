@@ -19,7 +19,31 @@ SECTIONS
 {
     . = ORIGIN(PSRAM);
     __stack_size = 1M;
-    __pt_size = 4K;
+
+  /*
+    Setting up mappings for PSRAM 
+    Each page table stores 512 8-byte entries
+    Level-1 can map 1GB pages so we just need
+    one entry from that to map the entire PSRAM
+    We still allocate a 512 entry table for ease
+  */
+    __pg1_size = 4K;
+
+  /*
+    The single entry in the level 1 page table
+    will take us to a single level 2 page table
+    that stores the mappings for 512 2MB pages
+    (we only need to populate 32 of these)
+  */
+    __pg2_size = 4K;
+
+  /*
+    Each of the 32 possible entries in level 2
+    can point to a level 3 page table so we
+    collectively allocate 512*512*8 bytes
+    (overestimating the 32 by 512)
+  */
+    __pg3_size = 2M;
 
     .text : {
         _kcode_start = .;
@@ -62,21 +86,21 @@ SECTIONS
     .pg1 : {
       . = ALIGN(0x1000);
       *(.pg1)
-      . += __pt_size;
+      . += __pg1_size;
       . = ALIGN(0x1000);
     } > PSRAM
 
     .pg2 : {
       . = ALIGN(0x1000);
       *(.pg2)
-      . += __pt_size;
+      . += __pg2_size;
       . = ALIGN(0x1000);
     } > PSRAM
 
     .pg3 : {
       . = ALIGN(0x1000);
       *(.pg3)
-      . += __pt_size;
+      . += __pg3_size;
       . = ALIGN(0x1000);
     } > PSRAM
 
