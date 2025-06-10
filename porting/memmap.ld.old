@@ -45,7 +45,7 @@ SECTIONS
   */
     __pg3_size = 2M;
 
-    .text : ALIGN(4) {
+    .text : {
         _kcode_start = .;
         KEEP(*(.text.boot))  
         *(.text*) 

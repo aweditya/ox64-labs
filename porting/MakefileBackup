@@ -1,7 +1,5 @@
-PAYLOADS=vm.c
-#PAYLOADS=$(wildcard *.c)
-# TARGETS=$(patsubst %.c,%.bin,$(PAYLOADS))
-TARGETS=vm.bin
+PAYLOADS=$(wildcard *.c)
+TARGETS=$(patsubst %.c,%.bin,$(PAYLOADS))
 
 ASM=$(wildcard lib/*.S)
 SRC=$(wildcard lib/*.c)
@@ -15,12 +13,10 @@ LD=$(PREFIX)-ld
 OBJDUMP=$(PREFIX)-objdump
 OBJCOPY=$(PREFIX)-objcopy
 
-OPT ?= 1
+OPT ?= 3
 
-# COMMON_FLAGS=-MMD -ffreestanding -nostdlib -nostartfiles -march=rv64imafc -mabi=lp64
-COMMON_FLAGS=-MMD -ffreestanding -nostdlib -nostartfiles -march=rv64gc -mabi=lp64
+COMMON_FLAGS=-MMD -ffreestanding -nostdlib -nostartfiles -march=rv64imafc -mabi=lp64
 CFLAGS=$(COMMON_FLAGS) -O$(OPT) -Ilib
-CFLAGS += -falign-functions=4
 ASFLAGS=$(COMMON_FLAGS) -Ilib
 LDFLAGS=-nostdlib -flto
 

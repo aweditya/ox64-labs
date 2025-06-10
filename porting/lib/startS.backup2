@@ -9,7 +9,6 @@ _start:
 .option pop
   nop
   nop
-
   # Allow exceptions/interrupts to be handled in S-mode
   # Keep interrupt delegation off for the time being.
   # li t0, 0xffff
@@ -32,7 +31,7 @@ _start:
   and   t1, t1, t2
   li   t0, (0b01 << 11)		# MPP = S-mode
   or   t1, t1, t0
-  # li   t0, (1 << 7) | (1 << 5)	# Enable interrupts globally # taken care of below, no?
+  # li   t0, (1 << 7) | (1 << 5)	# Enable interrupts globally, taken care of down there no?
   csrw mstatus, t1
 
   # Enable interrupts in S-mode, write to MIE
@@ -72,9 +71,9 @@ _start:
   # Initialize UART here for debugging purposes
   call init_uart
 
-  # Dump the contents of all registers
+  # Dump the contents of some M-mode registers just for
+  # sanity checking
   call dump_csrs
-
   mret
 
 halt:
@@ -86,8 +85,6 @@ halt:
 m_trap_handler:
     call print_in_trap
     call dump_csrs
-    call print_info
-    
     mret
 
 .globl put32

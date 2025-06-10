@@ -1,0 +1,81 @@
+GENERATE_WAVEFORM	bb.c	/^#define GENERATE_WAVEFORM(pin, duration_us) do { /
+OFF	bb.c	/^#define OFF(pin) do { \\$/
+ON	bb.c	/^#define ON(pin)  do { \\$/
+PUT32_check	plic.c	/^void PUT32_check(uint64_t addr, uint32_t v) {$/
+SEND_BIT	bb.c	/^#define SEND_BIT(pin, bit) do { \\$/
+SEND_BYTE	bb.c	/^#define SEND_BYTE(pin, byte) do { \\$/
+SEND_HEADER	bb.c	/^#define SEND_HEADER(pin) do { \\$/
+SEND_ONE	bb.c	/^#define SEND_ONE(pin) do { \\$/
+SEND_STOP	bb.c	/^#define SEND_STOP(pin) do { \\$/
+SEND_ZERO	bb.c	/^#define SEND_ZERO(pin) do { \\$/
+SRC_NOCLK	plic.c	/^};$/
+VAL_N_US	bb.c	/^#define VAL_N_US(us)   (((us) * FREQ) \/ 1000000)$/
+__attribute__	0-test-clint.c	/^__attribute__((aligned(4))) void handler(void) {$/
+check_identity_mapping	vm.c	/^void check_identity_mapping(uint64_t va) {$/
+check_intr_pending	plic.c	/^uint32_t check_intr_pending(uint32_t irq) {$/
+create_pte_level1_leaf	vm_testfault.c	/^void create_pte_level1_leaf(pte_t *pt, volatile ui/
+csrr_mcause	smode.c	/^static inline uint64_t csrr_mcause() {$/
+csrr_mepc	smode.c	/^static inline uint64_t csrr_mepc() {$/
+csrr_mieval	smode.c	/^static inline uint64_t csrr_mieval() {$/
+csrr_mipval	smode.c	/^static inline uint64_t csrr_mipval() {$/
+csrr_mstatus	smode.c	/^static inline uint64_t csrr_mstatus() {$/
+csrr_mtval	smode.c	/^static inline uint64_t csrr_mtval() {$/
+csrr_mtvec	smode.c	/^static inline uint64_t csrr_mtvec() {$/
+csrr_satpval	smode.c	/^static inline uint64_t csrr_satpval() {$/
+des_sw_interrupts	sw_clint.c	/^void des_sw_interrupts(void) {$/
+disable_all_plic_interrupts	plic.c	/^void disable_all_plic_interrupts(void) {$/
+disable_ext_interrupts	plic.c	/^void disable_ext_interrupts(void) {$/
+disable_interrupts	echo.c	/^void disable_interrupts(void) {$/
+disable_plic_interrupt	plic.c	/^void disable_plic_interrupt(uint32_t irq) {$/
+disable_sw_interrupts	echo.c	/^void disable_sw_interrupts(void) {$/
+disable_timer_interrupts	echo.c	/^void disable_timer_interrupts(void) {$/
+dump_csrs	smode.c	/^void dump_csrs(void) {$/
+enable_ext_interrupts	plic.c	/^void enable_ext_interrupts(void) {$/
+enable_interrupts	echo.c	/^void enable_interrupts(void) {$/
+enable_plic_interrupt	plic.c	/^void enable_plic_interrupt(uint32_t irq) {$/
+enable_sw_interrupts	echo.c	/^void enable_sw_interrupts(void) {$/
+enable_timer_interrupts	echo.c	/^void enable_timer_interrupts(void) {$/
+gen_sw_interrupts	echo.c	/^void gen_sw_interrupts(void) {$/
+get_mapbaddr	plic.c	/^static inline uint64_t get_mapbaddr(void) {$/
+get_mie	echo.c	/^static inline uint64_t get_mie(void) {$/
+get_mip	echo.c	/^static inline uint64_t get_mip(void) {$/
+get_misa	ss.c	/^static inline uint64_t get_misa(void) {$/
+get_mstatus	echo.c	/^static inline uint64_t get_mstatus(void) {$/
+get_mtvec	echo.c	/^static inline uint64_t get_mtvec(void) {$/
+get_mxstatus	echo.c	/^static inline uint64_t get_mxstatus(void) {$/
+get_satp	echo.c	/^static inline uint64_t get_satp(void) {$/
+init_uart	smode.c	/^void init_uart(void) {$/
+intr_completion	plic.c	/^static void intr_completion(uint32_t target) {$/
+intr_req_response	plic.c	/^static uint32_t intr_req_response(void) {$/
+itoa_hex	bb.c	/^void itoa_hex(uint64_t num) {$/
+kmain	0-test-clint.c	/^void kmain(void) {$/
+mcontrol	ss.c	/^} mcontrol;$/
+mmu_disable	vm_testfault.c	/^void mmu_disable(void) {$/
+mmu_enable	vm_testfault.c	/^void mmu_enable(void) {$/
+mmu_init	vm_testfault.c	/^void mmu_init(void) {$/
+mmu_is_disabled	vm_testfault.c	/^bool mmu_is_disabled(void) {$/
+mmu_is_enabled	vm_testfault.c	/^bool mmu_is_enabled(void) {$/
+mmu_set_base_ppn	vm_testfault.c	/^void mmu_set_base_ppn(uint64_t ppn) {$/
+mmu_set_ctx	vm_testfault.c	/^void mmu_set_ctx(uint64_t asid) {$/
+my_timer_init	echo.c	/^void my_timer_init(uint32_t mtime_cmp_lo, uint32_t/
+print_in_trap	smode.c	/^void print_in_trap(void) {$/
+print_info	vm.c	/^void print_info() {$/
+put32_check	plic.c	/^void put32_check(volatile uint32_t *addr, uint32_t/
+read_csr	smode.c	/^static inline uint64_t read_csr(const char *name) /
+read_marchid	hello.c	/^static inline uint64_t read_marchid(void) {$/
+read_mhartid	hello.c	/^static inline uint64_t read_mhartid(void) {$/
+read_mimpid	hello.c	/^static inline uint64_t read_mimpid(void) {$/
+read_misa	hello.c	/^static inline uint64_t read_misa(void) {$/
+read_mstatus	hello.c	/^static inline uint64_t read_mstatus(void) {$/
+read_mvendorid	hello.c	/^static inline uint64_t read_mvendorid(void) {$/
+read_satp	vm_testfault.c	/^static inline uint64_t read_satp(void) {$/
+set_intr_prio	plic.c	/^void set_intr_prio(uint32_t irq, unsigned prio) {$/
+set_intr_th	plic.c	/^void set_intr_th(unsigned th) {$/
+timer0_init	plic.c	/^void timer0_init(uint32_t match_val0, uint32_t mat/
+timer0_start	plic.c	/^void timer0_start(void) {$/
+timer1_init	plic.c	/^void timer1_init(uint32_t match_val0, uint32_t mat/
+timer1_start	plic.c	/^void timer1_start(void) {$/
+trap_vector	smode.c	/^void trap_vector(void) {$/
+vector_base_set	echo.c	/^static inline void vector_base_set(void *vec) {$/
+write_csr	ss.c	/^static inline void write_csr(uint64_t csr, uint64_/
+write_satp	vm.c	/^static inline void write_satp(uint64_t value) {$/

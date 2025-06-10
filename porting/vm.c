@@ -9,7 +9,7 @@
 #define PTESIZE     8
 #define VPN_BITS    9
 
-#define ASID    1LL
+#define ASID    1ULL
 #define BARE    0LL
 #define Sv39    8LL
 #define Sv48    9LL
@@ -114,12 +114,15 @@ void PUT32_check(uint64_t addr, uint32_t v) {
 
 static inline void write_satp(uint64_t value) {
     uart_puts(UART0, "Trying to write to SATP...\n");
+    // Flush pending writes and instruction cache
+    asm volatile("fence.i");          // flush i-cache
+    asm volatile("sfence.vma");       // flush TLB just in case
     asm volatile(
             "csrw satp, %0" 
             : 
             : "r"(value));
     // Flush TLB after writing.
-    // asm volatile("sfence.vma");
+    asm volatile("sfence.vma");
 }
 
 static inline uint64_t read_satp(void) {
@@ -206,9 +209,30 @@ void check_identity_mapping(uint64_t va) {
     }
 }
 
+void print_info() {
+    uart_puts(UART0, "Dumping first few entries of page table!\n");
+    uint64_t *pt = (uint64_t *)0x50203000;
+    for (int i = 0; i < 8; i++) {
+        uart_puthex64(pt[i]);
+        uart_putc(UART0, '\n');
+    }
+    
+    uint64_t epc = csrr_mepc();
+    check_identity_mapping(epc);
+    if (epc % 2 != 0)
+        uart_puts(UART0, "⚠️  EPC not 2-byte aligned!\n");
+    if (epc % 4 != 0)
+        uart_puts(UART0, "⚠️  EPC not 4-byte aligned!\n");
+}
+
+
 void kmain(void) {
     uart_puts(UART0, "Inside kmain\n");
   
+    // while (1) {
+    //     uart_puts(UART0, "MMU is disabled to begin as expected\n");
+    // }
+
     if (mmu_is_disabled()) {
       uart_puts(UART0, "MMU is disabled to begin as expected\n");
     }
@@ -251,7 +275,13 @@ void kmain(void) {
 
         // Set R,W,X to be 111 (leaf node)
         // V = 1
-        pg3[vpn1][vpn0] = (ppn << 10) | 0b111 << 1 | 1 << 0;
+        // pg3[vpn1][vpn0] = (ppn << 10) | 0b111 << 1 | 1 << 0;
+        // Including A=1, D=1 bits
+        pg3[vpn1][vpn0] = (ppn << 10) | (0b111 << 1) | (1 << 6) | (1 << 7) | 0x1;
+        // adding these bits allows the program to continue after
+        // the sfence.vma in mmu_enable.
+        // but still crashes after this in GET32 :(
+        // trying to figure out why
 
         // Set R,W,X to be 000 (tree node which is not a leaf)
         // V = 1
@@ -262,18 +292,32 @@ void kmain(void) {
         // V = 1
         uint64_t pg2_base = (uint64_t)pg2;
         pg1[vpn2] = ((pg2_base >> 12) << 10) | 0b000 << 1 | 1 << 0;
-        uart_puts(UART0, "Some metadata\n");
-        uart_puthex64(vpn2); uart_putc(UART0, '\n');
-        uart_puthex64(vpn1); uart_putc(UART0, '\n');
-        uart_puthex64(vpn0); uart_putc(UART0, '\n');
+        // uart_puts(UART0, "Some metadata\n");
+        // uart_puthex64(vpn2); uart_putc(UART0, '\n');
+        // uart_puthex64(vpn1); uart_putc(UART0, '\n');
+        // uart_puthex64(vpn0); uart_putc(UART0, '\n');
     }
 
     check_identity_mapping(0x50000000);
     // check_identity_mapping(0x51000000);
     // check_identity_mapping(0x53FFFFF0);
 
+    // while (1) {
+    //     check_identity_mapping(0x50000000);
+    //     check_identity_mapping(0x500006ca);
+    // }
+
     uart_puts(UART0, "Enabling MMU!\n");
+    // gets past this loop
+    // while (1) {
+    //     uart_puts(UART0, "Here before enabling MMU!\n");
+    // }
+    asm volatile("fence iorw, iorw");
     mmu_enable(pg1_base);
+
+    while (1) {
+        uart_puts(UART0, "Here after checking identity mapping and enabling MMU!\n");
+    }
   
     // check mmu is enabled
     if (mmu_is_enabled()) {
