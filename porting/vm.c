@@ -25,6 +25,10 @@ uint64_t pg3[PT_SIZE][PT_SIZE] __attribute__((aligned(4096)));
 #define PSRAM_SZ    64*1024*1024
 #define PSRAM_END   PSRAM_START+PSRAM_SZ
 
+#define UART_MMIO_SZ    0x100
+#define UART0_MMIO_START 0x2000A000
+#define UART0_MMIO_END   (UART0_MMIO_START + UART_MMIO_SZ)
+
 void init_uart(void) {
     uart_init(UART0, 115200);
 }
@@ -210,19 +214,17 @@ void check_identity_mapping(uint64_t va) {
 }
 
 void print_info() {
-    uart_puts(UART0, "Dumping first few entries of page table!\n");
-    uint64_t *pt = (uint64_t *)0x50203000;
-    for (int i = 0; i < 8; i++) {
-        uart_puthex64(pt[i]);
-        uart_putc(UART0, '\n');
-    }
-    
     uint64_t epc = csrr_mepc();
+    uart_puts(UART0, "Checking identity mapping of mepc="); uart_puthex64(epc); uart_putc(UART0, '\n');
     check_identity_mapping(epc);
     if (epc % 2 != 0)
         uart_puts(UART0, "⚠️  EPC not 2-byte aligned!\n");
     if (epc % 4 != 0)
         uart_puts(UART0, "⚠️  EPC not 4-byte aligned!\n");
+    
+    uint64_t mtval = csrr_mtval();
+    uart_puts(UART0, "Checking identity mapping of mtval="); uart_puthex64(mtval); uart_putc(UART0, '\n');
+    check_identity_mapping(mtval);
 }
 
 
@@ -255,7 +257,7 @@ void kmain(void) {
 //     }
 
 
-    uart_puts(UART0, "Manually setting up an identity page table mapping!\n");
+    uart_puts(UART0, "Manually setting up an identity page table mapping for PSRAM!\n");
     uart_puthex64(PSRAM_START); uart_putc(UART0, '\n');
     uart_puthex64(PSRAM_END); uart_putc(UART0, '\n');
     for (uint64_t addr = PSRAM_START; addr < PSRAM_END; addr+=PGOFF) {
@@ -280,7 +282,7 @@ void kmain(void) {
         pg3[vpn1][vpn0] = (ppn << 10) | (0b111 << 1) | (1 << 6) | (1 << 7) | 0x1;
         // adding these bits allows the program to continue after
         // the sfence.vma in mmu_enable.
-        // but still crashes after this in GET32 :(
+        // but still crashes after this in a call to GET32 :(
         // trying to figure out why
 
         // Set R,W,X to be 000 (tree node which is not a leaf)
@@ -302,10 +304,25 @@ void kmain(void) {
     // check_identity_mapping(0x51000000);
     // check_identity_mapping(0x53FFFFF0);
 
-    // while (1) {
-    //     check_identity_mapping(0x50000000);
-    //     check_identity_mapping(0x500006ca);
-    // }
+    uart_puts(UART0, "Manually setting up a mapping for UART!\n");
+    for (uint64_t addr = UART0_MMIO_START; addr < UART0_MMIO_END; addr += PGOFF) {
+        uint64_t x = addr;
+        uint64_t vpn0 = (x >> 12) & 0x1ff;
+        x = x >> 12;
+        uint64_t ppn = x;
+        uint64_t vpn1 = (x >> VPN_BITS) & 0x1ff;
+        x = x >> VPN_BITS;
+        uint64_t vpn2 = (x >> VPN_BITS) & 0x1ff;
+
+        // Leaf entry: D=1, A=1, R=1, W=1, X=0, V=1
+        // no execute bits for no instruction prefetches
+        pg3[vpn1][vpn0] = (ppn << 10) | (1 << 7) |(1 << 6) | (0b011 << 1) | 1;
+
+        // Intermediate entries
+        pg2[vpn1] = (((uint64_t)pg3[vpn1] >> 12) << 10) | (0b000 << 1) | 1;
+        pg1[vpn2] = (((uint64_t)pg2 >> 12) << 10) | (0b000 << 1) | 1;
+    }
+
 
     uart_puts(UART0, "Enabling MMU!\n");
     // gets past this loop
@@ -314,10 +331,6 @@ void kmain(void) {
     // }
     asm volatile("fence iorw, iorw");
     mmu_enable(pg1_base);
-
-    while (1) {
-        uart_puts(UART0, "Here after checking identity mapping and enabling MMU!\n");
-    }
   
     // check mmu is enabled
     if (mmu_is_enabled()) {
