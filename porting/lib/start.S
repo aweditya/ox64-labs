@@ -10,85 +10,10 @@ _start:
   nop
   nop
 
-  # Allow exceptions/interrupts to be handled in S-mode
-  # Keep interrupt delegation off for the time being.
-  # li t0, 0xffff
-  # csrw medeleg, t0
-  # csrw mideleg, t0
-
-  # Bit   Label
-  # 1     SIE
-  # 3     MIE
-  # 5     SPIE
-  # 7     MPIE
-  # 11:12 MPP
-  # By setting MPP to 0b01, we are saying that the
-  # CPU was in S-mode before entering the trap.
-  # Note that we are actually not trapping
-  # When we return from the "trap," we should be in
-  # S-mode
-  csrr t1, mstatus  
-  li    t2, ~(0b11 << 11)	# Clear bits 12:11 = MPP
-  and   t1, t1, t2
-  li   t0, (0b01 << 11)		# MPP = S-mode
-  or   t1, t1, t0
-  # li   t0, (1 << 7) | (1 << 5)	# Enable interrupts globally # taken care of below, no?
-  csrw mstatus, t1
-
-  # Enable interrupts in S-mode, write to MIE
-  # Bit   Label
-  # 1     SSIE
-  # 3     MSIE
-  # 5     STIE
-  # 7	  MTIE
-  # Enable software and timer interrupts in both
-  # M- and S-mode
-  li t0, (1 << 7) | (1 << 5) | (1 << 3) | (1 << 1)
-  csrw mie, t0
-
-  # Clear all pending interrupts
-  li t0, 0
-  csrw mip, t0
-
-  # Make sure the MMU is disabled
-  csrw satp, t0
-
-  # Most permissive PMP configuration
-  # Let S-mode access physical memory
-  li t0, -1
-  csrw pmpaddr0, t0
-  li t0, 0x1F
-  csrw pmpcfg0, t0
- 
-  # Drop from machine mode to supervisor mode, starting at _cstart
-  la t0, _cstart
-  csrw mepc, t0
-
-  # Set up traps in M-mode (not doing interrupt delegation so we
-  # don't need an S-mode handler)
-  la t0, m_trap_handler
-  csrw mtvec, t0
-
-  # Initialize UART here for debugging purposes
-  call init_uart
-
-  # Dump the contents of all registers
-  call dump_csrs
-
-  mret
-
+  call _cstart
 halt:
   nop
   j halt
-
-.align 2
-.global m_trap_handler
-m_trap_handler:
-    call print_in_trap
-    call dump_csrs
-    call print_info
-    
-    mret
 
 .globl put32
 .globl PUT32
@@ -116,3 +41,7 @@ PUT64:
   fence iorw,iorw
   ret
 
+# .globl handler_trampoline
+# handler_trampoline:
+#   j handler
+#   ret
