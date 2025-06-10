@@ -277,13 +277,8 @@ void kmain(void) {
 
         // Set R,W,X to be 111 (leaf node)
         // V = 1
-        // pg3[vpn1][vpn0] = (ppn << 10) | 0b111 << 1 | 1 << 0;
         // Including A=1, D=1 bits
         pg3[vpn1][vpn0] = (ppn << 10) | (0b111 << 1) | (1 << 6) | (1 << 7) | 0x1;
-        // adding these bits allows the program to continue after
-        // the sfence.vma in mmu_enable.
-        // but still crashes after this in a call to GET32 :(
-        // trying to figure out why
 
         // Set R,W,X to be 000 (tree node which is not a leaf)
         // V = 1
@@ -304,7 +299,7 @@ void kmain(void) {
     // check_identity_mapping(0x51000000);
     // check_identity_mapping(0x53FFFFF0);
 
-    uart_puts(UART0, "Manually setting up a mapping for UART!\n");
+    uart_puts(UART0, "Manually setting up a mapping for UART0!\n");
     for (uint64_t addr = UART0_MMIO_START; addr < UART0_MMIO_END; addr += PGOFF) {
         uint64_t x = addr;
         uint64_t vpn0 = (x >> 12) & 0x1ff;
@@ -329,6 +324,7 @@ void kmain(void) {
     // while (1) {
     //     uart_puts(UART0, "Here before enabling MMU!\n");
     // }
+    // 
     asm volatile("fence iorw, iorw");
     mmu_enable(pg1_base);
   
