@@ -10,6 +10,7 @@ static void delay_ncycles(size_t ncycles) {
       break;
   }
 }
+
 static void delay_us(size_t us) {
   delay_ncycles(CYCLES_PER_SECOND / 1000000 * us);
 }
@@ -20,4 +21,9 @@ static void delay_ms(size_t ms) {
 
 static void delay_sec(size_t sec) {
   delay_ms(sec * 1000);
+}
+
+// get elapsed usec since cnt cycles
+static unsigned timer_get_usec() {
+  return (cycle_cnt_read() * 1000000) / CYCLES_PER_SECOND;
 }
